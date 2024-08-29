@@ -1,0 +1,20 @@
+{
+  "name": "ai_garden",
+  "version": "1.0.0",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "dependencies": {
+    "@langchain/openai": "^0.2.7",
+    "chalk": "^5.3.0",
+    "dotenv": "^16.4.5",
+    "epub": "^1.2.1",
+    "gpt4all": "^4.0.0",
+    "langchain": "^0.2.17"
+  }
+}

@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LLM Interaction with D3.js Force-Directed Graph</title>
+    <style>
+        body { font-family: Arial, sans-serif; }
+        .node text { pointer-events: none; font-size: 12px; }
+        .node circle { cursor: pointer; fill: #1f77b4; stroke: #fff; stroke-width: 1.5px; }
+        .link { stroke: #999; stroke-opacity: 0.6; }
+    </style>
+</head>
+<body>
+
+<h1>Interact with the LLM</h1>
+
+<label for="textInput">Enter text to summarize:</label><br>
+<textarea id="textInput" rows="4" cols="50"></textarea><br>
+
+<button id="sendButton">Summarize</button>
+
+<div id="output">
+    <svg width="960" height="600"></svg>
+</div>
+
+<script src="https://d3js.org/d3.v6.min.js"></script>
+<script>
+  // WebSocket setup
+  const websocket = new WebSocket('ws://localhost:8080'); // Replace with your actual backend WebSocket endpoint
+
+  websocket.onopen = () => {
+    console.log('WebSocket connection established');
+  };
+
+  // D3.js Setup
+  const width = 960;
+  const height = 600;
+  const svg = d3.select("svg")
+    .attr("width", width)
+    .attr("height", height);
+
+  const simulation = d3.forceSimulation()
+    .force("link", d3.forceLink().id(d => d.id).distance(100)) // Fixed link distance for simplicity
+    .force("charge", d3.forceManyBody().strength(-400)) // Stronger repulsion for a more spread-out graph
+    .force("center", d3.forceCenter(width / 2, height / 2));
+
+  // Initialize the graph with the first node
+  let nodes = [{ id: "Paris is the capital of France", group: 1 }];
+  let links = [];
+
+  const updateGraph = () => {
+    console.log('Updating graph...');
+    console.log('Nodes:', nodes);
+    console.log('Links:', links);
+
+    // Update links
+    const link = svg.selectAll(".link")
+      .data(links)
+      .join("line")
+      .attr("class", "link")
+      .attr("stroke-width", d => Math.sqrt(d.value)); // Use weight for stroke width
+
+    // Update nodes
+    const node = svg.selectAll(".node")
+      .data(nodes, d => d.id) // Use the id as the key for data binding
+      .join(
+        enter => {
+          const nodeEnter = enter.append("g")
+            .attr("class", "node")
+            .call(drag(simulation));
+
+          nodeEnter.append("circle")
+            .attr("r", 20) // Larger radius for nodes
+            .attr("fill", d => d.group === 1 ? "#1f77b4" : "#ff7f0e");
+
+          nodeEnter.append("text")
+            .attr("dy", 4)
+            .attr("x", d => d.group === 1 ? -30 : 25)
+            .attr("text-anchor", d => d.group === 1 ? "end" : "start")
+            .text(d => d.id)
+            .style("font-size", "12px");
+
+          return nodeEnter;
+        },
+        update => update,
+        exit => exit.remove()
+      );
+
+    simulation.nodes(nodes).on("tick", () => {
+      link
+        .attr("x1", d => d.source.x)
+        .attr("y1", d => d.source.y)
+        .attr("x2", d => d.target.x)
+        .attr("y2", d => d.target.y);
+
+      node.attr("transform", d => `translate(${d.x},${d.y})`);
+    });
+
+    simulation.force("link").links(links);
+  };
+
+  websocket.onmessage = (event) => {
+    const data = JSON.parse(event.data);
+    console.log('Received WebSocket message:', data);
+
+    if (data.error) {
+      console.error('Error received:', data.error);
+    } else if (data.update) {
+      console.log('Received text chunk to update:', data.update);
+
+      // Add new node and link it to the most related existing node
+      const newNode = { id: data.update, group: 2 };
+      nodes.push(newNode);
+      console.log('New node added:', newNode);
+
+      const relatedNode = findMostRelatedNode(data.update);
+      console.log('Most related node found:', relatedNode);
+
+      const weight = calculateRelationshipWeight(relatedNode.id, data.update);
+      console.log('Calculated relationship weight:', weight);
+
+      links.push({ source: relatedNode.id, target: newNode.id, value: weight });
+      console.log('New link added:', { source: relatedNode.id, target: newNode.id, value: weight });
+
+      updateGraph(); // Update the graph with new data
+    } else if (data.summary) {
+      console.log('Final summary received:', data.summary);
+      // Handle the final summary if needed
+    }
+  };
+
+  document.getElementById('sendButton').addEventListener('click', () => {
+    const text = document.getElementById('textInput').value;
+    console.log('Sending text for summarization:', text);
+
+    websocket.send(JSON.stringify({ text }));
+    nodes = [{ id: "Paris is the capital of France", group: 1 }]; // Reset graph with only the initial node
+    links = [];
+    console.log('Graph reset with initial node');
+
+    updateGraph(); // Clear previous output on graph
+  });
+
+  // Function to calculate the weight of a relationship (e.g., based on similarity or some heuristic)
+  function calculateRelationshipWeight(term1, term2) {
+    console.log(`Calculating relationship weight between "${term1}" and "${term2}"`);
+    // For simplicity, assume a basic similarity score (this can be replaced with a more complex calculation)
+    const weight = Math.random() * 10 + 1; // Random weight between 1 and 10
+    console.log(`Calculated weight: ${weight}`);
+    return weight;
+  }
+
+  // Function to find the most related node based on your relationship structure
+  function findMostRelatedNode(newTerm) {
+    console.log('Finding most related node for new term:', newTerm);
+
+    let maxWeight = 0;
+    let relatedNode = nodes[0]; // Default to the first node ("Paris is the capital of France")
+
+    nodes.forEach(node => {
+      {
+        const weight = calculateRelationshipWeight(node.id, newTerm);
+        console.log(`Relationship weight with node "${node.id}": ${weight}`);
+        if (weight > maxWeight) {
+          maxWeight = weight;
+          relatedNode = node;
+        }
+      }
+    });
+
+    console.log('Most related node:', relatedNode);
+    return relatedNode;
+  }
+
+  // D3.js drag function
+  function drag(simulation) {
+    function dragstarted(event, d) {
+      if (!event.active) simulation.alphaTarget(0.3).restart();
+      d.fx = d.x;
+      d.fy = d.y;
+      console.log('Drag started for node:', d.id);
+    }
+
+    function dragged(event, d) {
+      d.fx = event.x;
+      d.fy = event.y;
+      console.log('Dragging node:', d.id);
+    }
+
+    function dragended(event, d) {
+      if (!event.active) simulation.alphaTarget(0);
+      d.fx = null;
+      d.fy = null;
+      console.log('Drag ended for node:', d.id);
+    }
+
+    return d3.drag()
+      .on("start", dragstarted)
+      .on("drag", dragged)
+      .on("end", dragended);
+  }
+
+  // Initial graph rendering
+  updateGraph();
+
+</script>
+</body>
+</html>
