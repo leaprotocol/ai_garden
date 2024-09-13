@@ -1,6 +1,9 @@
 import WebSocket from 'ws';
-import ollama from 'ollama';
+import { Ollama } from 'ollama'
 import { AbortController } from 'node-abort-controller';
+
+const ollama = new Ollama({ host: 'http://171.248.46.71:28108' })
+//const ollama = new Ollama({ host: 'http://localhost:11434' })
 
 export function handleWebSocketConnection(ws, logBox, clientsBox, updateUIOnConnection, updateUIOnDisconnection, updateUILog) {
     let isClientConnected = true;
@@ -46,7 +49,7 @@ async function processQuery(ws, text, sessionId, logBox, updateUILog) {
 
         // Send the message to the model and stream the response
         const response = await ollama.chat({
-            model: 'gemma2:2b-instruct-q2_K',  // Replace with your specific model, orca-mini:3b-q4_0, gemma2:2b-instruct-q2_K,smollm:135m-instruct-v0.2-q4_K_M
+            model: 'gemma2:2b-instruct-q8_0',  // Replace with your specific model, orca-mini:3b-q4_0, gemma2:2b-instruct-q2_K,smollm:135m-instruct-v0.2-q4_K_M
             messages: [message],
             stream: true,       // Enable streaming
         });
@@ -71,10 +74,20 @@ async function processQuery(ws, text, sessionId, logBox, updateUILog) {
         // Optionally, send the final accumulated text if needed
         updateUILog(logBox, `[INFO] Session ${sessionId} completed`);
 
+        try {
+            ws.send(JSON.stringify({ sessionId, textChunk: null, type: "completed" }));
+            updateUILog(logBox, `[INFO] Session ${sessionId}: Sent completed status to client`);
+        } catch (parseError) {
+            ws.send(JSON.stringify({ error: 'Internal server error' }));
+            updateUILog(logBox, `[ERROR] Session ${sessionId}: Internal server error during processing`);
+        }
+
+        return accumulatedText;
+
     } catch (error) {
         if (ws.readyState === WebSocket.OPEN) {
             ws.send(JSON.stringify({ error: 'Stream error during processing' }));
-            updateUILog(logBox, `[ERROR] Session ${sessionId}: Stream error during processing - ${error.message}`);
+            updateUILog(logBox, `[ERROR] Session ${sessionId}: Stream error during processing - ${error} ${error.stack}`);
         }
     }
 }

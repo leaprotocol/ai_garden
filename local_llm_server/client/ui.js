@@ -14,7 +14,7 @@ const consoleLogBox = blessed.log({
     bottom: 0,
     left: 0,
     width: '100%',
-    height: '20%',  // Occupies the bottom 20% of the screen
+    height: '50%',  // Occupies the bottom 20% of the screen
     label: 'Console Logs',
     tags: true,
     border: {
@@ -103,6 +103,30 @@ export function logToConsole(message) {
     screen.render();
 }
 
+
+// Bind keys to scroll up and down
+consoleLogBox.key(['up', 'k'], function(ch, key) {
+    consoleLogBox.scroll(-1);
+    screen.render();
+});
+
+consoleLogBox.key(['down', 'j'], function(ch, key) {
+    consoleLogBox.scroll(1);
+    screen.render();
+});
+
+consoleLogBox.key(['pageup'], function(ch, key) {
+    consoleLogBox.scroll(-consoleLogBox.height);
+    screen.render();
+});
+
+consoleLogBox.key(['pagedown'], function(ch, key) {
+    consoleLogBox.scroll(consoleLogBox.height);
+    screen.render();
+});
+consoleLogBox.on('click', function() {
+    consoleLogBox.focus();
+});
 // Append the console log box to the screen
 screen.append(consoleLogBox);
 
