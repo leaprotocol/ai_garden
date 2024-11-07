@@ -2,8 +2,8 @@ import WebSocket from 'ws';
 import { Ollama } from 'ollama'
 import { AbortController } from 'node-abort-controller';
 
-const ollama = new Ollama({ host: 'http://171.248.46.71:28108' })
-//const ollama = new Ollama({ host: 'http://localhost:11434' })
+//const ollama = new Ollama({ host: 'http://171.248.46.71:28108' })
+const ollama = new Ollama({ host: 'http://localhost:11434' })
 
 export function handleWebSocketConnection(ws, logBox, clientsBox, updateUIOnConnection, updateUIOnDisconnection, updateUILog) {
     let isClientConnected = true;
@@ -13,7 +13,10 @@ export function handleWebSocketConnection(ws, logBox, clientsBox, updateUIOnConn
         try {
             const data = JSON.parse(message);
             const text = data.text;
+            const model = data.model;
+            const options = data.options;
             sessionId = data.sessionId;
+
 
             if (!text || !sessionId) {
                 ws.send(JSON.stringify({ error: 'Text and valid session ID are required' }));
@@ -31,7 +34,7 @@ export function handleWebSocketConnection(ws, logBox, clientsBox, updateUIOnConn
                 updateUILog(logBox, `[INFO] Session ${sessionId}: Client disconnected, aborting request.`);
             });
 
-            await processQuery(ws, text, sessionId, logBox, updateUILog);
+            await processQuery(ws, text, sessionId, logBox, updateUILog, model, options);
 
         } catch (error) {
             if (isClientConnected) {
@@ -42,32 +45,35 @@ export function handleWebSocketConnection(ws, logBox, clientsBox, updateUIOnConn
     });
 }
 
-async function processQuery(ws, text, sessionId, logBox, updateUILog) {
+async function processQuery(ws, text, sessionId, logBox, updateUILog, model, options) {
     try {
         // Set up the message to send to the model
-        const message = { role: 'user', content: text };
+        const message = { role: 'system', content: text };
 
         // Send the message to the model and stream the response
-        const response = await ollama.chat({
-            model: 'gemma2:2b-instruct-q8_0',  // Replace with your specific model, orca-mini:3b-q4_0, gemma2:2b-instruct-q2_K,smollm:135m-instruct-v0.2-q4_K_M
-            messages: [message],
+        const response = await ollama.generate({
+            model: model,
+            prompt: text,
+            raw: true,
             stream: true,       // Enable streaming
+            options
         });
 
         let accumulatedText = '';  // Accumulate the response chunks
-
         for await (const part of response) {
+            console.log(part.response)
             if (ws.readyState !== WebSocket.OPEN) {
                 response.abort()
             }
 
             try {
-                accumulatedText += part.message.content;  // Accumulate chunks
-                ws.send(JSON.stringify({ sessionId, textChunk: part.message.content }));
+                updateUILog(logBox, JSON.stringify(part.response));
+                accumulatedText += part.response;  // Accumulate chunks
+                ws.send(JSON.stringify({ sessionId, textChunk: part.response }));
                 updateUILog(logBox, `[INFO] Session ${sessionId}: Sent part of the result to client`);
             } catch (parseError) {
                 ws.send(JSON.stringify({ error: 'Internal server error' }));
-                updateUILog(logBox, `[ERROR] Session ${sessionId}: Internal server error during processing`);
+                updateUILog(logBox, `[ERROR] Session ${sessionId}: Internal server error during processing ${parseError}`);
             }
         }
 

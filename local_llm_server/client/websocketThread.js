@@ -3,7 +3,7 @@ import { v4 as uuidv4 } from 'uuid';
 import {screen, createThreadBox, logToConsole} from './ui.js';
 
 // Function to create a WebSocket connection for each thread
-export function createThread(threadId, userPrompt) {
+export function createThread(threadId, userPrompt, options) {
     const sessionId = uuidv4();
     const ws = new WebSocket('ws://localhost:8080');
     let resolvePromise, rejectPromise;
@@ -25,7 +25,7 @@ export function createThread(threadId, userPrompt) {
         screen.render();
 
         // Send a message to the server
-        ws.send(JSON.stringify({ sessionId, text: fullPrompt }));
+        ws.send(JSON.stringify({ sessionId, text: fullPrompt, model:options.model, num_thread:options.num_thread }));
     });
 
     ws.on('message', (message) => {

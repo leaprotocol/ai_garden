@@ -7,18 +7,18 @@ import {bazosctrlc, exampleText1, lslah} from "./example_texts.js";
 const threads = [
     {
         threadId: 1,
-        systemPrompt: `You are an assistant for generating linux commands for analyzing user's content. Answer only the linux command`,
-        userPrompt: `This is ${lslah.slice(0,500)}`
+        systemPrompt: `You are a helpful chatbot.`,
+        userPrompt: `What is universe?`
     },
     {
         threadId: 2,
-        systemPrompt: `You are an assistant for generating linux commands for analyzing user's content. Answer only the linux command`,
-        userPrompt: `This is ${lslah}`
+        systemPrompt: `You are a helpful chatbot.`,
+        userPrompt: `What is universe?`
     }
 ];
 
 threads.forEach(thread => {
-   let template = `
+    let template = `
 <start_of_turn>system
 System:
 ${thread.systemPrompt}
@@ -30,7 +30,7 @@ ${thread.userPrompt}
 <start_of_turn>assistant
 `
     logToConsole(`Starting thread ${thread.threadId}...`);
-    createThread(thread.threadId, template);
+    createThread(thread.threadId, template, '');
     logToConsole(`Thread ${thread.threadId} started.`);
 });
 

@@ -2,207 +2,466 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>LLM Interaction with D3.js Force-Directed Graph</title>
+    <title>Multi-Agent Real-Time Communication</title>
     <style>
-        body { font-family: Arial, sans-serif; }
-        .node text { pointer-events: none; font-size: 12px; }
-        .node circle { cursor: pointer; fill: #1f77b4; stroke: #fff; stroke-width: 1.5px; }
-        .link { stroke: #999; stroke-opacity: 0.6; }
+        /* Embedded CSS */
+
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #1e1e1e;
+            color: #ffffff;
+            margin: 0;
+            padding: 20px;
+        }
+
+        h1 {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        #threads-container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 20px;
+            justify-content: center;
+        }
+
+        .thread-box {
+            background-color: #2e2e2e;
+            border: 2px solid #444;
+            border-radius: 8px;
+            padding: 15px;
+            width: 300px;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .thread-header {
+            font-size: 1.2em;
+            margin-bottom: 10px;
+            text-align: center;
+        }
+
+        .thread-content {
+            background-color: #1e1e1e;
+            padding: 10px;
+            border-radius: 5px;
+            height: 200px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            font-family: monospace;
+        }
+
+        #console-log {
+            background-color: #1e1e1e;
+            border: 1px solid #444;
+            border-radius: 5px;
+            padding: 10px;
+            height: 150px;
+            overflow-y: auto;
+            margin-top: 20px;
+            font-family: monospace;
+        }
     </style>
 </head>
 <body>
+<h1>Multi-Agent Real-Time Communication</h1>
+<div id="threads-container"></div>
+<div id="console-log"></div>
 
-<h1>Interact with the LLM</h1>
+<!-- Embedded JavaScript -->
+<script type="module">
+    // Import the UUID library from CDN
+    import { v4 as uuidv4 } from 'https://cdn.jsdelivr.net/npm/uuid@9.0.0/+esm';
 
-<label for="textInput">Enter text to summarize:</label><br>
-<textarea id="textInput" rows="4" cols="50"></textarea><br>
-
-<button id="sendButton">Summarize</button>
-
-<div id="output">
-    <svg width="960" height="600"></svg>
-</div>
-
-<script src="https://d3js.org/d3.v6.min.js"></script>
-<script>
-  // WebSocket setup
-  const websocket = new WebSocket('ws://localhost:8080'); // Replace with your actual backend WebSocket endpoint
-
-  websocket.onopen = () => {
-    console.log('WebSocket connection established');
-  };
-
-  // D3.js Setup
-  const width = 960;
-  const height = 600;
-  const svg = d3.select("svg")
-    .attr("width", width)
-    .attr("height", height);
-
-  const simulation = d3.forceSimulation()
-    .force("link", d3.forceLink().id(d => d.id).distance(100)) // Fixed link distance for simplicity
-    .force("charge", d3.forceManyBody().strength(-400)) // Stronger repulsion for a more spread-out graph
-    .force("center", d3.forceCenter(width / 2, height / 2));
-
-  // Initialize the graph with the first node
-  let nodes = [{ id: "Paris is the capital of France", group: 1 }];
-  let links = [];
-
-  const updateGraph = () => {
-    console.log('Updating graph...');
-    console.log('Nodes:', nodes);
-    console.log('Links:', links);
-
-    // Update links
-    const link = svg.selectAll(".link")
-      .data(links)
-      .join("line")
-      .attr("class", "link")
-      .attr("stroke-width", d => Math.sqrt(d.value)); // Use weight for stroke width
-
-    // Update nodes
-    const node = svg.selectAll(".node")
-      .data(nodes, d => d.id) // Use the id as the key for data binding
-      .join(
-        enter => {
-          const nodeEnter = enter.append("g")
-            .attr("class", "node")
-            .call(drag(simulation));
-
-          nodeEnter.append("circle")
-            .attr("r", 20) // Larger radius for nodes
-            .attr("fill", d => d.group === 1 ? "#1f77b4" : "#ff7f0e");
-
-          nodeEnter.append("text")
-            .attr("dy", 4)
-            .attr("x", d => d.group === 1 ? -30 : 25)
-            .attr("text-anchor", d => d.group === 1 ? "end" : "start")
-            .text(d => d.id)
-            .style("font-size", "12px");
-
-          return nodeEnter;
-        },
-        update => update,
-        exit => exit.remove()
-      );
-
-    simulation.nodes(nodes).on("tick", () => {
-      link
-        .attr("x1", d => d.source.x)
-        .attr("y1", d => d.source.y)
-        .attr("x2", d => d.target.x)
-        .attr("y2", d => d.target.y);
-
-      node.attr("transform", d => `translate(${d.x},${d.y})`);
-    });
-
-    simulation.force("link").links(links);
-  };
-
-  websocket.onmessage = (event) => {
-    const data = JSON.parse(event.data);
-    console.log('Received WebSocket message:', data);
-
-    if (data.error) {
-      console.error('Error received:', data.error);
-    } else if (data.update) {
-      console.log('Received text chunk to update:', data.update);
-
-      // Add new node and link it to the most related existing node
-      const newNode = { id: data.update, group: 2 };
-      nodes.push(newNode);
-      console.log('New node added:', newNode);
-
-      const relatedNode = findMostRelatedNode(data.update);
-      console.log('Most related node found:', relatedNode);
-
-      const weight = calculateRelationshipWeight(relatedNode.id, data.update);
-      console.log('Calculated relationship weight:', weight);
-
-      links.push({ source: relatedNode.id, target: newNode.id, value: weight });
-      console.log('New link added:', { source: relatedNode.id, target: newNode.id, value: weight });
-
-      updateGraph(); // Update the graph with new data
-    } else if (data.summary) {
-      console.log('Final summary received:', data.summary);
-      // Handle the final summary if needed
-    }
-  };
-
-  document.getElementById('sendButton').addEventListener('click', () => {
-    const text = document.getElementById('textInput').value;
-    console.log('Sending text for summarization:', text);
-
-    websocket.send(JSON.stringify({ text }));
-    nodes = [{ id: "Paris is the capital of France", group: 1 }]; // Reset graph with only the initial node
-    links = [];
-    console.log('Graph reset with initial node');
-
-    updateGraph(); // Clear previous output on graph
-  });
-
-  // Function to calculate the weight of a relationship (e.g., based on similarity or some heuristic)
-  function calculateRelationshipWeight(term1, term2) {
-    console.log(`Calculating relationship weight between "${term1}" and "${term2}"`);
-    // For simplicity, assume a basic similarity score (this can be replaced with a more complex calculation)
-    const weight = Math.random() * 10 + 1; // Random weight between 1 and 10
-    console.log(`Calculated weight: ${weight}`);
-    return weight;
-  }
-
-  // Function to find the most related node based on your relationship structure
-  function findMostRelatedNode(newTerm) {
-    console.log('Finding most related node for new term:', newTerm);
-
-    let maxWeight = 0;
-    let relatedNode = nodes[0]; // Default to the first node ("Paris is the capital of France")
-
-    nodes.forEach(node => {
-      {
-        const weight = calculateRelationshipWeight(node.id, newTerm);
-        console.log(`Relationship weight with node "${node.id}": ${weight}`);
-        if (weight > maxWeight) {
-          maxWeight = weight;
-          relatedNode = node;
+    // Event Emitter class to handle custom events
+    class EventEmitter {
+        constructor() {
+            this.events = {};
         }
-      }
+
+        on(event, listener) {
+            if (!this.events[event]) {
+                this.events[event] = [];
+            }
+            this.events[event].push(listener);
+        }
+
+        emit(event, ...args) {
+            if (this.events[event]) {
+                this.events[event].forEach(listener => listener(...args));
+            }
+        }
+
+        off(event, listenerToRemove) {
+            if (!this.events[event]) return;
+            this.events[event] = this.events[event].filter(listener => listener !== listenerToRemove);
+        }
+    }
+
+    // Create a global event emitter instance
+    const eventEmitter = new EventEmitter();
+
+    // Function to log messages to the console log div
+    function logToConsole(message) {
+        const logDiv = document.getElementById('console-log');
+        const timestamp = new Date().toLocaleTimeString();
+        logDiv.innerHTML += `[${timestamp}] ${message}<br>`;
+        logDiv.scrollTop = logDiv.scrollHeight;
+    }
+
+    // Function to create a thread box in the UI
+    function createThreadBox(threadId) {
+        const threadsContainer = document.getElementById('threads-container');
+
+        const threadBox = document.createElement('div');
+        threadBox.className = 'thread-box';
+        threadBox.id = `thread-${threadId}`;
+
+        const header = document.createElement('div');
+        header.className = 'thread-header';
+        header.textContent = `Thread ${threadId}`;
+
+        const content = document.createElement('div');
+        content.className = 'thread-content';
+        content.id = `thread-content-${threadId}`;
+        content.textContent = 'Initializing...';
+
+        threadBox.appendChild(header);
+        threadBox.appendChild(content);
+        threadsContainer.appendChild(threadBox);
+
+        return content;
+    }
+
+    // Global memory object
+    let memory = '';
+
+    const functions = [
+        {
+            name: "getWeather",
+            description: "Fetches current weather information for a specified location.",
+            parameters: {
+                type: "object",
+                properties: {
+                    location: {
+                        type: "string",
+                        description: "The city or location to get the weather for."
+                    }
+                },
+                required: ["location"]
+            }
+        }
+        // Add more functions as needed
+    ];
+
+    // Global processing stack
+    let processingStack = [];
+
+    // Flag to track if synthesizer is running
+    let synthesizerRunning = false;
+
+    // Function to create a WebSocket connection for each thread
+    function createThread(threadId, userPrompt, model, options, isContinuous = false) {
+        const sessionId = uuidv4();
+        const ws = new WebSocket('ws://localhost:8080'); // Update with your server URL
+        let outputText = '';
+
+        const threadContent = createThreadBox(threadId);
+
+        ws.addEventListener('open', () => {
+            threadContent.textContent = `Connected with session ID: ${sessionId}\n\nSending request...\n\n${userPrompt}`;
+            logToConsole(`Thread ${threadId} connected with session ID ${sessionId}`);
+            ws.send(JSON.stringify({
+                sessionId,
+                text: userPrompt,
+                model: model,
+                options
+            }));
+        });
+
+        ws.addEventListener('message', (event) => {
+            try {
+                const data = JSON.parse(event.data);
+                if (data.error) {
+                    threadContent.textContent += `\n\nError: ${data.error}`;
+                    logToConsole(`Thread ${threadId} error: ${data.error}`);
+                    eventEmitter.emit('threadError', threadId, data.error);
+                } else if (data.type === "completed") {
+                    threadContent.style.borderColor = "green";
+                    logToConsole(`Thread ${threadId} completed.`);
+                    eventEmitter.emit('threadCompleted', threadId, outputText);
+                    if (isContinuous) {
+                        // Restart the thread
+                        setTimeout(() => {
+                            logToConsole(`Thread ${threadId} restarting...`);
+                            createThread(threadId, userPrompt, model, options, true);
+                        }, 1000); // Adjust the delay as needed
+                    }
+                } else if (data.textChunk) {
+                    outputText += data.textChunk;
+                    const baseText = threadContent.textContent.split('Received result:')[0];
+                    threadContent.textContent = `${baseText}Received result:\n${outputText}`;
+                    //logToConsole(`Thread ${threadId} received chunk.`);
+                    eventEmitter.emit('threadData', threadId, data.textChunk, outputText);
+                }
+            } catch (err) {
+                logToConsole(`Thread ${threadId} received invalid message: ${event.data}`);
+                eventEmitter.emit('threadError', threadId, 'Invalid message format');
+            }
+        });
+
+        ws.addEventListener('close', () => {
+            threadContent.textContent += `\n\nDisconnected from server.`;
+            logToConsole(`Thread ${threadId} disconnected.`);
+            eventEmitter.emit('threadClosed', threadId);
+        });
+
+        ws.addEventListener('error', (error) => {
+            threadContent.textContent += `\n\nWebSocket error: ${error}`;
+            logToConsole(`Thread ${threadId} WebSocket error: ${error}`);
+            eventEmitter.emit('threadError', threadId, error);
+        });
+    }
+
+    // Function to run the synthesizer if not already running
+    function runSynthesizer() {
+        if (synthesizerRunning) {
+            // Synthesizer is already running, do nothing
+            return;
+        }
+        if (processingStack.length === 0) {
+            // No items to process
+            return;
+        }
+
+        synthesizerRunning = true;
+
+        // Clone and clear the processing stack
+        const itemsToProcess = processingStack.slice();
+        processingStack = [];
+
+        spawnSynthesisModel(itemsToProcess);
+    }
+    function runSpawner(output){
+        const spawnerThreadId = `spawner-${Date.now()}`;
+        const synthesizedPrompt = `System:
+You are an LLM system prompt designer. This is the information you got:×${memory}×
+
+create an LLM system prompt to output similar simple information. Output in this form: "@#$ \${your output} $#@"`;
+        const options = {
+            num_thread: 2,
+            stop: ["{{- end }}", "{{ end }}",
+                "<|start_header_id|>",
+                "<|end_header_id|>",
+                "<|eot_id|>"]
+        };
+        logToConsole(`Spawning synthesis model as ${spawnerThreadId}`);
+        createThread(spawnerThreadId, synthesizedPrompt,`llama3.2:3b-instruct-q6_K` , options);
+    }
+
+    // Function to spawn the synthesis model
+    function spawnSynthesisModel(outputs) {
+        const synthesisThreadId = `Synthesizer-${Date.now()}`;
+        const outputsText = outputs.join('\n');
+        const synthesizedPrompt = `You have this information: ×${memory}×
+You add this information to it: ×${outputsText}×
+resulting total information (only the facts, as a string.):`;
+        const options = {
+            num_thread: 2,
+            stop: ["{{- end }}", "{{ end }}",
+                "<|start_header_id|>",
+                "<|end_header_id|>",
+                "<|eot_id|>"]
+        };
+        logToConsole(`Spawning synthesis model as ${synthesisThreadId}`);
+        createThread(synthesisThreadId, synthesizedPrompt,`llama3.2:3b-instruct-q6_K` , options);
+
+        // Listener function for synthesizer completion
+        function onSynthesizerCompleted(completedThreadId, synthesizedOutput) {
+            if (completedThreadId === synthesisThreadId) {
+                // Update the memory with the synthesized output
+                memory = synthesizedOutput;
+                logToConsole(`Memory updated by ${synthesisThreadId}`);
+                // Optionally, display the updated memory
+                console.log(`Updated Memory`, memory);
+                // Set synthesizerRunning to false
+                synthesizerRunning = false;
+                // Remove this listener
+                eventEmitter.off('threadCompleted', onSynthesizerCompleted);
+                // Attempt to run the synthesizer again in case there are new items
+                runSynthesizer();
+                runSpawner(memory);
+            }
+        }
+
+        // Listen for completion of the synthesis model
+        eventEmitter.on('threadCompleted', onSynthesizerCompleted);
+    }
+
+    // Define Agent A (continuous model)
+    const agentA = {
+        threadId: 'AgentA',
+        prompt: `give one random fact about the universe.`,
+        model: `llama3.2:3b-instruct-q6_K`, // Replace with your model
+        options: {
+            num_thread: 2,
+            stop: ["{{- end }}", "{{ end }}",
+                "<|start_header_id|>",
+                "<|end_header_id|>",
+                "<|eot_id|>"]
+        }
+    };
+
+    // Define Agent B (continuous model)
+    const agentB = {
+        threadId: 'AgentB',
+        prompt: `
+System: Here is some important information about the universe:
+- Dark matter makes up over 90% of the universe's matter and affects galaxies through gravitational forces.
+- The Great Wall is the largest known structure in the universe, spanning 1.37 billion light-years.
+- Jupiter's Great Red Spot is a storm larger than Earth, active for over 187 years.
+- The universe is expanding due to dark energy, causing galaxies to move further apart.
+- In 4 billion years, the Andromeda Galaxy will collide with the Milky Way.
+
+Instruction: Provide an insightful explanation about any one of these topics, or summarize the most surprising facts from the information provided.
+`,
+        model: `llama3.2:3b-instruct-q6_K`, // Replace with your model
+        options: {
+            num_thread: 4,
+            stop: ["{{- end }}", "{{ end }}",
+                "<|start_header_id|>",
+                "<|end_header_id|>",
+                "<|eot_id|>"]
+        }
+    };
+
+    // Define Agent C (continuous model)
+    let memC = ""
+    const agentC = {
+        threadId: 'AgentC',
+        prompt: `
+<|begin_of_text|><|start_header_id|>system<|end_header_id|>
+Environment: ipython
+Tools: getWeather
+You are a helpful assistant capable of calling functions to provide information.
+Your task is to remember the most information about user. Here's your memory now:
+{"memory":\"${memC}\"}
+You have access to the following tools:
+{"name": "getData", "description": "Fetches any information for a specified location.", "parameters": {"location": {"description": "The location to get the information for", "param_type": "str", "required": true}}}
+Your output format(output only lines in this format): <a question for a user>:<possible answers>
+now, generate the questions.
+<|eot_id|><|start_header_id|>assistant<|end_header_id|>`,
+        model: `llama3.2:3b-instruct-q6_K`, // Replace with your model
+        options: {
+            num_thread: 1,
+            stop: ["{{- end }}", "{{ end }}",
+                "<|start_header_id|>",
+                "<|end_header_id|>",
+                "<|eot_id|>"]
+        }
+    };
+    // Define Agent D (continuous model)
+    const agentD = {
+        threadId: 'AgentD',
+        prompt: `
+<|begin_of_text|><|start_header_id|>system<|end_header_id|>
+You are a text processing assistant. Your task is to replace specific strings in the given text with new strings as instructed. Here are the replacement rules:
+
+- Replace "apple" with "orange"
+- Replace "car" with "bike"
+- Replace "happy" with "joyful"
+
+Please apply these replacements to the following text:
+
+"This is a sample text where I have an apple and I drive my car. It makes me feel happy."
+
+Provide the modified text with the replacements applied and then stop.
+
+<|eot_id|><|start_header_id|>assistant<|end_header_id|>
+<|output_start|>`,
+        model: `llama3.2:3b-instruct-q6_K`, // Replace with your model
+        options: {
+            num_thread: 4,
+            stop: ["{{- end }}", "{{ end }}",
+                "<|start_header_id|>",
+                "<|end_header_id|>",
+                "<|eot_id|>"]
+        }
+    };
+    // Define Agent D (continuous model)
+    const agentE = {
+        threadId: 'agentE',
+        prompt: `<|begin_of_text|><|start_header_id|>system<|end_header_id|>
+        generate me one list of words in this form and then stop: ["word1","word2"].
+        List should have highest LLM perplexity possible. Answer:
+<|eot_id|><|start_header_id|>assistant<|end_header_id|>["`,
+        model: `llama3.2:3b-instruct-q6_K`, // Replace with your model
+        options: {
+            num_thread: 4,
+            stop: ["{{- end }}", "{{ end }}",
+                "<|start_header_id|>",
+                "<|end_header_id|>",
+                "<|eot_id|>"]
+        }
+    };
+    // Define Agent D (continuous model)
+    const agentF = {
+        threadId: 'agentF',
+        //list: ["quintessential", "sonder", "ephemeral", "serendipity", "sonder", "limerence", "palimpsest", "ineffable", "sonder", "susurrus"]
+        prompt: `how much does this list perplex you on a scale of 0 to 10? Answer with a single number.
+        list: ["paper", "graped", "YOLO", "55559","#$%","likeable","likeable","likeable","perpleyz","perplex"]
+        answer:`,
+        model: `llama3.2:3b-instruct-q6_K`, // Replace with your model
+        options: {
+            num_thread: 4,
+            stop: ["\n","{{- end }}", "{{ end }}",
+                "<|start_header_id|>",
+                "<|end_header_id|>",
+                "<|eot_id|>"]
+        }
+    };
+/*
+    logToConsole(`Starting ${agentA.threadId}...`);
+    createThread(agentA.threadId, agentA.prompt, agentA.model, agentA.options, true);
+    logToConsole(`${agentA.threadId} started.`);
+
+    logToConsole(`Starting ${agentB.threadId}...`);
+    createThread(agentB.threadId, agentB.prompt, agentB.model, agentB.options, true);
+    logToConsole(`${agentB.threadId} started.`);
+
+    logToConsole(`Starting ${agentC.threadId}...`);
+    createThread(agentC.threadId, agentC.prompt, agentC.model, agentC.options, true);
+    logToConsole(`${agentC.threadId} started.`);
+
+    logToConsole(`Starting ${agentD.threadId}...`);
+    createThread(agentD.threadId, agentD.prompt, agentD.model, agentD.options, true);
+    logToConsole(`${agentD.threadId} started.`);
+
+    logToConsole(`Starting ${agentE.threadId}...`);
+    createThread(agentE.threadId, agentE.prompt, agentE.model, agentE.options, true);
+    logToConsole(`${agentE.threadId} started.`);
+*/
+
+    logToConsole(`Starting ${agentF.threadId}...`);
+    createThread(agentF.threadId, agentF.prompt, agentF.model, agentF.options, true);
+    logToConsole(`${agentF.threadId} started.`);
+
+    // Listen for outputs from Agent A and Agent B to add to processing stack
+    eventEmitter.on('threadCompleted', (threadId, outputText) => {
+        if (threadId === agentA.threadId || threadId === agentB.threadId) {
+            // Push the outputText onto the processing stack
+            processingStack.push(outputText);
+            logToConsole(`Output from ${threadId} added to processing stack.`);
+            // Attempt to run the synthesizer
+            runSynthesizer();
+        }
     });
 
-    console.log('Most related node:', relatedNode);
-    return relatedNode;
-  }
-
-  // D3.js drag function
-  function drag(simulation) {
-    function dragstarted(event, d) {
-      if (!event.active) simulation.alphaTarget(0.3).restart();
-      d.fx = d.x;
-      d.fy = d.y;
-      console.log('Drag started for node:', d.id);
-    }
-
-    function dragged(event, d) {
-      d.fx = event.x;
-      d.fy = event.y;
-      console.log('Dragging node:', d.id);
-    }
-
-    function dragended(event, d) {
-      if (!event.active) simulation.alphaTarget(0);
-      d.fx = null;
-      d.fy = null;
-      console.log('Drag ended for node:', d.id);
-    }
-
-    return d3.drag()
-      .on("start", dragstarted)
-      .on("drag", dragged)
-      .on("end", dragended);
-  }
-
-  // Initial graph rendering
-  updateGraph();
+    // Optional: Display the memory periodically
+    setInterval(() => {
+        logToConsole(`Current Memory:\n${memory}`);
+    }, 10000); // Adjust the interval as needed (e.g., every 10 seconds)
 
 </script>
 </body>
