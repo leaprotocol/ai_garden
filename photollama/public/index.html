@@ -1,0 +1,492 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Photo Analyzer</title>
+    <style>
+        
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .photo-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 20px;
+            padding: 20px;
+        }
+        .photo-card {
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 15px;
+            background: white;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .photo-card img {
+            width: 100%;
+            height: 200px;
+            object-fit: cover;
+            border-radius: 4px;
+        }
+        .scores {
+            margin-top: 10px;
+        }
+        .score-item {
+            display: flex;
+            justify-content: space-between;
+            margin: 5px 0;
+            padding: 5px 0;
+            border-bottom: 1px solid #eee;
+        }
+        .status {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            background: white;
+            padding: 10px;
+            border-radius: 4px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            z-index: 1000;
+        }
+        .status span {
+            white-space: nowrap;
+        }
+        .analyze-form {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            width: 300px;
+        }
+        .selected-photos {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin: 10px 0;
+        }
+        .selected-photo {
+            position: relative;
+            width: 60px;
+            height: 60px;
+        }
+        .selected-photo img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            border-radius: 4px;
+        }
+        .selected-photo button {
+            position: absolute;
+            top: -5px;
+            right: -5px;
+            border: none;
+            background: red;
+            color: white;
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            cursor: pointer;
+        }
+        textarea {
+            width: 100%;
+            height: 80px;
+            margin: 10px 0;
+            padding: 8px;
+            border-radius: 4px;
+            border: 1px solid #ddd;
+        }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        button:disabled {
+            background: #ccc;
+        }
+        .photo-card.selectable {
+            cursor: pointer;
+        }
+        .photo-card.selected {
+            border: 2px solid #007bff;
+        }
+        .analysis-result {
+            margin-top: 20px;
+            padding: 10px;
+            background: #f8f9fa;
+            border-radius: 4px;
+        }
+        .conversation {
+            margin: 10px 0;
+            max-height: 300px;
+            overflow-y: auto;
+            border: 1px solid #ddd;
+            padding: 10px;
+        }
+        .message {
+            margin: 10px 0;
+            padding: 10px;
+            border-radius: 4px;
+        }
+        .message.system {
+            background: #f8f9fa;
+        }
+        .message.user {
+            background: #e3f2fd;
+        }
+        .message.assistant {
+            background: #f1f8e9;
+        }
+        .mode-selector {
+            margin: 10px 0;
+            padding: 10px;
+            background: #f8f9fa;
+            border-radius: 4px;
+        }
+        .mode-selector label {
+            display: block;
+            margin: 5px 0;
+            cursor: pointer;
+        }
+        .pause-button {
+            background: #4CAF50;
+            color: white;
+            border: none;
+            padding: 5px 10px;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        .pause-button.paused {
+            background: #f44336;
+        }
+        .status {
+    position: fixed;
+    top: 20px;
+    left: 20px;
+    background: white;
+    padding: 10px;
+    border-radius: 4px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    z-index: 1000;
+}
+
+.status span {
+    white-space: nowrap;
+}
+
+.selected-photos-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    gap: 10px;
+    margin-top: 10px;
+}
+
+.curated-photo {
+    position: relative;
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.curated-photo img {
+    width: 100%;
+    height: 150px;
+    object-fit: cover;
+}
+
+.photo-score {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: rgba(0,0,0,0.7);
+    color: white;
+    padding: 4px;
+    font-size: 12px;
+    text-align: center;
+}
+
+#curationOptions {
+    background: #f8f9fa;
+    padding: 10px;
+    border-radius: 4px;
+}
+
+#curationOptions select,
+#curationOptions input {
+    width: 100%;
+    margin: 5px 0;
+    padding: 5px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+}
+    </style>
+</head>
+<body>
+    <div id="status" class="status">
+        <span id="statusText">Loading results...</span>
+        <button id="pauseButton" class="pause-button" style="display: none;">
+            Pause Analysis
+        </button>
+    </div>
+    <div id="photoGrid" class="photo-grid"></div>
+    
+    <form id="analyzeForm" class="analyze-form">
+        <h3>Analyze Photo Set</h3>
+        <div class="mode-selector">
+            <label>
+                <input type="radio" name="mode" value="sequential" checked> 
+                Sequential Analysis
+            </label>
+            <label>
+                <input type="radio" name="mode" value="batch">
+                Batch Analysis
+            </label>
+            <label>
+                <input type="radio" name="mode" value="curate">
+                Curate Photos
+            </label>
+        </div>
+        <div id="curationOptions" style="display: none; margin-top: 10px;">
+            <select id="curationPurpose">
+                <option value="social">Social Media Posts</option>
+                <option value="portfolio">Professional Portfolio</option>
+                <option value="prints">Print Sales</option>
+                <option value="website">Website Gallery</option>
+            </select>
+            <input type="number" id="selectionCount" min="1" max="50" value="10" placeholder="How many photos to select?">
+        </div>
+        <div id="selectedPhotos" class="selected-photos"></div>
+        <textarea id="question" placeholder="Optional: Add specific requirements for the curation (e.g., 'Focus on photos showing collaboration' or 'Prefer photos with bright lighting')"></textarea>
+        <button type="submit" disabled>Analyze Selected Photos</button>
+        <div id="analysisResult" class="analysis-result"></div>
+    </form>
+
+    <script>
+        const status = document.getElementById('status');
+        const photoGrid = document.getElementById('photoGrid');
+        let retryCount = 0;
+        const analyzeForm = document.getElementById('analyzeForm');
+        const selectedPhotos = document.getElementById('selectedPhotos');
+        const question = document.getElementById('question');
+        const analysisResult = document.getElementById('analysisResult');
+        const selectedPhotosList = new Set();
+        const pauseButton = document.getElementById('pauseButton');
+        let isPaused = false;
+        const curationOptions = document.getElementById('curationOptions');
+        const curationPurpose = document.getElementById('curationPurpose');
+        const selectionCount = document.getElementById('selectionCount');
+
+        async function updateStatus() {
+            try {
+                const response = await fetch('/api/results');
+                const data = await response.json();
+                const statusText = document.getElementById('statusText');
+                
+                if (data.isAnalyzing) {
+                    pauseButton.style.display = 'inline-block';
+                    statusText.textContent = `Analyzed ${data.results.length} photos so far...`;
+                    displayResults(data.results);
+                } else {
+                    pauseButton.style.display = 'none';
+                    statusText.textContent = `Analysis complete: ${data.results.length} photos processed`;
+                }
+            } catch (error) {
+                console.error('Error fetching results:', error);
+            }
+        }
+
+        pauseButton.onclick = async () => {
+            try {
+                const response = await fetch('/api/analysis/toggle', { method: 'POST' });
+                const data = await response.json();
+                isPaused = data.isPaused;
+                pauseButton.textContent = isPaused ? 'Resume Analysis' : 'Pause Analysis';
+                pauseButton.classList.toggle('paused', isPaused);
+            } catch (error) {
+                console.error('Error toggling analysis:', error);
+            }
+        };
+
+        // Replace fetchResults with updateStatus in setInterval
+        setInterval(updateStatus, 1000);
+
+        // Initial status update
+        updateStatus();
+
+        function updateSubmitButton() {
+            const submitButton = analyzeForm.querySelector('button[type="submit"]');
+            submitButton.disabled = selectedPhotosList.size === 0 || !question.value.trim();
+        }
+
+        function togglePhotoSelection(photoCard, photoName) {
+            if (selectedPhotosList.has(photoName)) {
+                selectedPhotosList.delete(photoName);
+                photoCard.classList.remove('selected');
+                removeFromSelectedDisplay(photoName);
+            } else {
+                selectedPhotosList.add(photoName);
+                photoCard.classList.add('selected');
+                addToSelectedDisplay(photoName);
+            }
+            updateSubmitButton();
+        }
+
+        function addToSelectedDisplay(photoName) {
+            const div = document.createElement('div');
+            div.className = 'selected-photo';
+            div.innerHTML = `
+                <img src="/photos/${photoName}">
+                <button type="button" onclick="removeFromSelectedDisplay('${photoName}')">&times;</button>
+            `;
+            selectedPhotos.appendChild(div);
+        }
+
+        function removeFromSelectedDisplay(photoName) {
+            selectedPhotosList.delete(photoName);
+            const photos = selectedPhotos.querySelectorAll('.selected-photo');
+            photos.forEach(photo => {
+                if (photo.querySelector('img').src.includes(photoName)) {
+                    photo.remove();
+                }
+            });
+            document.querySelectorAll('.photo-card').forEach(card => {
+                if (card.querySelector('img').src.includes(photoName)) {
+                    card.classList.remove('selected');
+                }
+            });
+            updateSubmitButton();
+        }
+
+        function displayResults(results) {
+            photoGrid.innerHTML = '';
+            results.forEach(result => {
+                const card = document.createElement('div');
+                card.className = 'photo-card selectable';
+                
+                const img = document.createElement('img');
+                img.src = `/photos/${result.photo}`;
+                img.onerror = () => {
+                    img.src = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="300" height="200"><rect width="100%" height="100%" fill="%23ddd"/><text x="50%" y="50%" fill="%23666" text-anchor="middle">Image not found</text></svg>';
+                };
+
+                card.onclick = () => togglePhotoSelection(card, result.photo);
+                
+                const scores = document.createElement('div');
+                scores.className = 'scores';
+                
+                const categories = ['Technical', 'Composition', 'Artistic', 'People', 'Overall'];
+                result.averageScores.forEach((score, index) => {
+                    if (categories[index]) {
+                        const scoreItem = document.createElement('div');
+                        scoreItem.className = 'score-item';
+                        scoreItem.innerHTML = `
+                            <span>${categories[index]}:</span>
+                            <span>${score}/10</span>
+                        `;
+                        scores.appendChild(scoreItem);
+                    }
+                });
+
+                card.appendChild(img);
+                card.appendChild(scores);
+                photoGrid.appendChild(card);
+            });
+        }
+
+        question.addEventListener('input', updateSubmitButton);
+
+        document.querySelectorAll('input[name="mode"]').forEach(radio => {
+            radio.addEventListener('change', (e) => {
+                curationOptions.style.display = e.target.value === 'curate' ? 'block' : 'none';
+                updateSubmitButton();
+            });
+        });
+
+        const getPrompt = (mode, purpose, customQuestion) => {
+            if (mode === 'curate') {
+                let basePrompt = `Select the best photos for ${purpose}.`;
+                if (customQuestion.trim()) {
+                    basePrompt += ` Additional requirements: ${customQuestion}`;
+                }
+                basePrompt += ` Consider: visual impact, message clarity, technical quality, and target audience suitability.`;
+                return basePrompt;
+            }
+            return customQuestion;
+        };
+
+        analyzeForm.onsubmit = async (e) => {
+            e.preventDefault();
+            const submitButton = analyzeForm.querySelector('button[type="submit"]');
+            submitButton.disabled = true;
+            analysisResult.innerHTML = '<p>Analyzing photos...</p>';
+            
+            try {
+                const mode = analyzeForm.querySelector('input[name="mode"]:checked').value;
+                const payload = {
+                    photos: Array.from(selectedPhotosList),
+                    question: question.value,
+                    mode: mode,
+                    purpose: mode === 'curate' ? curationPurpose.value : undefined,
+                    count: mode === 'curate' ? parseInt(selectionCount.value) : undefined
+                };
+
+                const response = await fetch('/api/analyze-set', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                
+                const result = await response.json();
+                if (result.error) throw new Error(result.error);
+                
+                if (mode === 'curate') {
+                    analysisResult.innerHTML = `
+                        <h4>Curation Results:</h4>
+                        <p>Selected ${result.selectedPhotos.length} photos for ${result.purpose}</p>
+                        <div class="selected-photos-grid">
+                            ${result.selectedPhotos.map(photo => `
+                                <div class="curated-photo">
+                                    <img src="/photos/${path.basename(photo.path)}" alt="Selected photo">
+                                    <div class="photo-score">Score: ${photo.score}/10</div>
+                                </div>
+                            `).join('')}
+                        </div>
+                        <div class="detailed-analysis">
+                            ${result.detailedAnalysis.response}
+                        </div>
+                    `;
+                } else {
+                    analysisResult.innerHTML = `
+                        <h4>Analysis Result:</h4>
+                        <div class="conversation">
+                            ${result.conversation.map(msg => `
+                                <div class="message ${msg.role}">
+                                    <strong>${msg.role}:</strong>
+                                    ${msg.hasImage ? '<em>(photo' + (mode === 'batch' ? 's' : '') + ')</em><br>' : ''}
+                                    <p>${msg.content}</p>
+                                </div>
+                            `).join('')}
+                        </div>
+                    `;
+                }
+            } catch (err) {
+                analysisResult.innerHTML = `<p style="color: red">Error: ${err.message}</p>`;
+            } finally {
+                submitButton.disabled = false;
+            }
+        };
+    </script>
+</body>
+</html> 

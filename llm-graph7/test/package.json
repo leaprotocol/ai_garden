@@ -1,0 +1,12 @@
+{
+  "name": "llm-graph7-tests",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Test scripts for LLM Graph 7",
+  "scripts": {
+    "test:spawner": "node spawner-test.js"
+  },
+  "dependencies": {
+    "ws": "^8.16.0"
+  }
+} 

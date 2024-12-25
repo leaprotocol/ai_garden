@@ -1,0 +1,721 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ollama Demo</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        input, textarea, select {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+        textarea {
+            min-height: 100px;
+            resize: vertical;
+        }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        #response {
+            margin-top: 20px;
+            white-space: pre-wrap;
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 4px;
+            border: 1px solid #ddd;
+        }
+        .loading {
+            opacity: 0.5;
+            pointer-events: none;
+        }
+        .info-box {
+            background: #e9ecef;
+            padding: 10px;
+            border-radius: 4px;
+            margin-bottom: 20px;
+            font-size: 0.9em;
+        }
+        .info-box code {
+            background: #dee2e6;
+            padding: 2px 4px;
+            border-radius: 3px;
+        }
+        .token-count {
+            font-size: 0.9em;
+            color: #666;
+            margin-top: 4px;
+        }
+        .token-summary {
+            background: #e9ecef;
+            padding: 10px;
+            border-radius: 4px;
+            margin: 10px 0;
+            font-weight: bold;
+        }
+        .token-stats {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 4px;
+            margin: 10px 0;
+            font-size: 0.9em;
+        }
+        .token-stats h3 {
+            margin-top: 0;
+            color: #495057;
+        }
+        .token-stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 10px;
+            margin-top: 10px;
+        }
+        .token-stat-item {
+            background: white;
+            padding: 8px;
+            border-radius: 4px;
+            border: 1px solid #dee2e6;
+        }
+        .token-stat-label {
+            color: #6c757d;
+            font-size: 0.8em;
+        }
+        .token-stat-value {
+            font-weight: bold;
+            color: #212529;
+        }
+        .conversation-history {
+            margin: 20px 0;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            max-height: 500px;
+            overflow-y: auto;
+        }
+        .message {
+            padding: 15px;
+            margin: 10px;
+            border-radius: 4px;
+            position: relative;
+        }
+        .message.user {
+            background: #e3f2fd;
+            margin-left: 20px;
+        }
+        .message.assistant {
+            background: #f5f5f5;
+            margin-right: 20px;
+        }
+        .message .actions {
+            position: absolute;
+            right: 10px;
+            top: 10px;
+            display: none;
+        }
+        .message:hover .actions {
+            display: block;
+        }
+        .message .actions button {
+            padding: 4px 8px;
+            font-size: 0.8em;
+            margin-left: 5px;
+        }
+        .message.edited::after {
+            content: '(edited)';
+            font-size: 0.8em;
+            color: #6c757d;
+            margin-left: 8px;
+        }
+        .message .timestamp {
+            font-size: 0.8em;
+            color: #6c757d;
+            margin-top: 5px;
+        }
+        .response-container {
+            position: relative;
+        }
+        .response-actions {
+            position: absolute;
+            right: 10px;
+            top: 10px;
+        }
+        .raw-mode {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 15px;
+        }
+        .raw-mode input[type="checkbox"] {
+            width: auto;
+            margin: 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Ollama Demo</h1>
+        
+        <div class="info-box">
+            <p>Connected to Ollama at: <code id="ollamaHost">Loading...</code></p>
+            <p>To change the Ollama host, set the <code>OLLAMA_HOST</code> environment variable when starting the server.</p>
+            <p>Example: <code>OLLAMA_HOST=http://remote-server:11434 npm run ollama</code></p>
+        </div>
+
+        <div class="raw-mode">
+            <input type="checkbox" id="rawMode" name="rawMode">
+            <label for="rawMode">Raw Mode (disables context and metadata)</label>
+        </div>
+
+        <div class="form-group">
+            <label for="model">Model:</label>
+            <select id="model">
+                <option value="">Loading models...</option>
+            </select>
+        </div>
+
+        <div class="form-group">
+            <label for="context">System Context:</label>
+            <textarea id="context" placeholder="Enter system context (optional)"></textarea>
+            <div class="token-count" id="contextTokens">Tokens: 0</div>
+        </div>
+
+        <div class="form-group">
+            <label for="contextLength">Context Length:</label>
+            <input type="number" id="contextLength" value="1024" min="1">
+        </div>
+
+        <div class="form-group">
+            <label for="prompt">Prompt:</label>
+            <textarea id="prompt" placeholder="Enter your prompt"></textarea>
+            <div class="token-count" id="promptTokens">Tokens: 0</div>
+        </div>
+
+        <div class="token-summary">
+            Total Tokens: <span id="totalTokens">0</span>
+        </div>
+
+        <div class="conversation-history" id="conversationHistory"></div>
+
+        <div class="form-group">
+            <button onclick="sendRequest('chat')">Chat</button>
+            <button onclick="sendRequest('generate')">Generate</button>
+            <button onclick="createNewBranch()" id="branchButton" style="display: none;">Branch from Here</button>
+        </div>
+
+        <div class="response-container">
+            <pre id="response"></pre>
+            <div class="response-actions">
+                <button onclick="toggleJsonView()" id="toggleJsonButton" style="display: none;">Show Full JSON</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="tokenStats" class="token-stats" style="display: none;">
+        <h3>Token Analysis</h3>
+        <div class="token-stats-grid">
+            <div class="token-stat-item">
+                <div class="token-stat-label">Context Tokens</div>
+                <div class="token-stat-value" id="statsContextTokens">-</div>
+            </div>
+            <div class="token-stat-item">
+                <div class="token-stat-label">Prompt Eval Count</div>
+                <div class="token-stat-value" id="statsPromptEval">-</div>
+            </div>
+            <div class="token-stat-item">
+                <div class="token-stat-label">Response Eval Count</div>
+                <div class="token-stat-value" id="statsEvalCount">-</div>
+            </div>
+            <div class="token-stat-item">
+                <div class="token-stat-label">Total Tokens</div>
+                <div class="token-stat-value" id="statsTotalTokens">-</div>
+            </div>
+        </div>
+        
+        <div class="token-timing" style="margin-top: 15px;">
+            <h4>Timing Information</h4>
+            <div class="token-stats-grid">
+                <div class="token-stat-item">
+                    <div class="token-stat-label">Total Duration</div>
+                    <div class="token-stat-value" id="statsTotalDuration">-</div>
+                </div>
+                <div class="token-stat-item">
+                    <div class="token-stat-label">Load Duration</div>
+                    <div class="token-stat-value" id="statsLoadDuration">-</div>
+                </div>
+                <div class="token-stat-item">
+                    <div class="token-stat-label">Prompt Eval Duration</div>
+                    <div class="token-stat-value" id="statsPromptEvalDuration">-</div>
+                </div>
+                <div class="token-stat-item">
+                    <div class="token-stat-label">Eval Duration</div>
+                    <div class="token-stat-value" id="statsEvalDuration">-</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentConversationId = null;
+        let currentMessageId = null;
+        let lastResponse = null;
+        let isJsonView = false;
+
+        // Fetch current Ollama host configuration
+        async function fetchConfig() {
+            try {
+                const response = await fetch('/api/config');
+                const data = await response.json();
+                document.getElementById('ollamaHost').textContent = data.ollamaHost;
+            } catch (error) {
+                document.getElementById('ollamaHost').textContent = 'Error fetching configuration';
+            }
+        }
+
+        // Fetch config on page load
+        fetchConfig();
+
+        async function sendRequest(type) {
+            const responseElem = document.getElementById('response');
+            const container = document.querySelector('.container');
+            const tokenStats = document.getElementById('tokenStats');
+            const toggleJsonButton = document.getElementById('toggleJsonButton');
+            const branchButton = document.getElementById('branchButton');
+            const rawMode = document.getElementById('rawMode').checked;
+            
+            try {
+                container.classList.add('loading');
+                responseElem.textContent = '';
+                tokenStats.style.display = 'none';
+                toggleJsonButton.style.display = 'none';
+
+                if (type === 'generate') {
+                    let fullText = '';
+                    let chunks = [];
+
+                    // Use SSE for generate endpoint
+                    const response = await fetch('/api/generate', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            model: document.getElementById('model').value,
+                            context: document.getElementById('context').value,
+                            contextLength: parseInt(document.getElementById('contextLength').value),
+                            prompt: document.getElementById('prompt').value,
+                            raw: rawMode
+                        })
+                    });
+
+                    const reader = response.body.getReader();
+                    const decoder = new TextDecoder();
+                    let buffer = '';
+
+                    while (true) {
+                        const { value, done } = await reader.read();
+                        if (done) break;
+                        
+                        buffer += decoder.decode(value, { stream: true });
+                        const lines = buffer.split('\n');
+                        
+                        // Process all complete lines
+                        buffer = lines.pop() || ''; // Keep the last incomplete line in buffer
+                        
+                        for (const line of lines) {
+                            if (line.startsWith('data: ')) {
+                                try {
+                                    const data = JSON.parse(line.slice(6));
+                                    chunks.push(data); // Store all chunks
+                                    
+                                    switch (data.type) {
+                                        case 'start':
+                                            responseElem.textContent = '';
+                                            fullText = '';
+                                            break;
+                                        
+                                        case 'chunk':
+                                            fullText += data.response;
+                                            if (!isJsonView) {
+                                                responseElem.textContent = fullText;
+                                            }
+                                            // Auto-scroll to bottom
+                                            responseElem.scrollTop = responseElem.scrollHeight;
+                                            break;
+                                        
+                                        case 'done':
+                                            lastResponse = {
+                                                chunks: chunks,
+                                                final: data,
+                                                fullResponse: fullText
+                                            };
+                                            if (isJsonView) {
+                                                responseElem.textContent = JSON.stringify(lastResponse, null, 2);
+                                            }
+                                            if (!data.raw && data.context) {
+                                                analyzeTokenContext(data.context);
+                                            }
+                                            toggleJsonButton.style.display = 'block';
+                                            // Only show token stats in non-raw mode
+                                            if (!data.raw && data.tokenStats) {
+                                                updateTokenStats(data.tokenStats);
+                                                tokenStats.style.display = 'block';
+                                            }
+                                            container.classList.remove('loading');
+                                            break;
+                                        
+                                        case 'error':
+                                            throw new Error(data.error);
+                                    }
+                                } catch (error) {
+                                    console.error('Error parsing SSE data:', error);
+                                }
+                            }
+                        }
+                    }
+
+                    // Clear prompt after successful generation
+                    document.getElementById('prompt').value = '';
+                    
+                } else {
+                    // Use regular fetch for chat endpoint
+                    const response = await fetch(`/api/${type}`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            model: document.getElementById('model').value,
+                            context: document.getElementById('context').value,
+                            contextLength: parseInt(document.getElementById('contextLength').value),
+                            prompt: document.getElementById('prompt').value,
+                            conversationId: currentConversationId,
+                            parentMessageId: currentMessageId
+                        })
+                    });
+
+                    const data = await response.json();
+                    lastResponse = data;
+                    
+                    if (!response.ok) {
+                        throw new Error(data.error || 'Request failed');
+                    }
+
+                    // Update conversation state
+                    if (data.conversationId) {
+                        currentConversationId = data.conversationId;
+                        currentMessageId = data.messageId;
+                    }
+
+                    // Display response
+                    responseElem.textContent = isJsonView ? JSON.stringify(data, null, 2) : (data.response || JSON.stringify(data, null, 2));
+                    
+                    // Update conversation history if available
+                    if (data.messages) {
+                        updateConversationHistory(data.messages);
+                    }
+                    
+                    // Update token statistics
+                    if (data.tokenStats) {
+                        updateTokenStats(data.tokenStats);
+                        tokenStats.style.display = 'block';
+                    }
+
+                    // Show JSON toggle button and branch button
+                    toggleJsonButton.style.display = 'block';
+                    branchButton.style.display = 'block';
+
+                    // Clear prompt input after successful send
+                    document.getElementById('prompt').value = '';
+                    container.classList.remove('loading');
+                }
+            } catch (error) {
+                responseElem.textContent = `Error: ${error.message}`;
+                container.classList.remove('loading');
+            }
+        }
+
+        function updateTokenStats(stats) {
+            document.getElementById('statsContextTokens').textContent = stats.contextTokens;
+            document.getElementById('statsPromptEval').textContent = stats.promptEvalCount;
+            document.getElementById('statsEvalCount').textContent = stats.evalCount;
+            document.getElementById('statsTotalTokens').textContent = stats.totalTokens;
+            
+            // Update timing information
+            document.getElementById('statsTotalDuration').textContent = `${(stats.timing.totalDuration / 1e6).toFixed(2)}ms`;
+            document.getElementById('statsLoadDuration').textContent = `${(stats.timing.loadDuration / 1e6).toFixed(2)}ms`;
+            document.getElementById('statsPromptEvalDuration').textContent = `${(stats.timing.promptEvalDuration / 1e6).toFixed(2)}ms`;
+            document.getElementById('statsEvalDuration').textContent = `${(stats.timing.evalDuration / 1e6).toFixed(2)}ms`;
+        }
+
+        async function analyzeTokenContext(context) {
+            try {
+                const response = await fetch('/api/analyze-tokens', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ context })
+                });
+
+                const analysis = await response.json();
+                console.log('Token context analysis:', analysis);
+                
+                // You can add UI elements to display the analysis results if desired
+            } catch (error) {
+                console.error('Error analyzing token context:', error);
+            }
+        }
+
+        // Fetch available models and populate the select list
+        async function fetchModels() {
+            try {
+                const response = await fetch('/api/models');
+                const models = await response.json();
+                const modelSelect = document.getElementById('model');
+                modelSelect.innerHTML = '';
+                models.forEach(model => {
+                    const option = document.createElement('option');
+                    option.value = model.name;
+                    option.textContent = model.name;
+                    modelSelect.appendChild(option);
+                });
+            } catch (error) {
+                console.error('Error fetching models:', error);
+                document.getElementById('model').innerHTML = '<option value="">Error loading models</option>';
+            }
+        }
+
+        // Fetch models on page load
+        fetchModels();
+
+        // Debounce function to limit API calls
+        function debounce(func, wait) {
+            let timeout;
+            return function executedFunction(...args) {
+                const later = () => {
+                    clearTimeout(timeout);
+                    func(...args);
+                };
+                clearTimeout(timeout);
+                timeout = setTimeout(later, wait);
+            };
+        }
+
+        // Function to estimate tokens
+        async function updateTokenCount() {
+            try {
+                const promptText = document.getElementById('prompt').value;
+                const contextText = document.getElementById('context').value;
+                const model = document.getElementById('model').value;
+
+                if (!promptText && !contextText) {
+                    document.getElementById('promptTokens').textContent = 'Tokens: 0';
+                    document.getElementById('contextTokens').textContent = 'Tokens: 0';
+                    document.getElementById('totalTokens').textContent = '0';
+                    return;
+                }
+
+                const response = await fetch('/api/estimate-tokens', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        text: promptText,
+                        context: contextText,
+                        model: model
+                    })
+                });
+
+                const data = await response.json();
+                
+                document.getElementById('promptTokens').textContent = `Tokens: ${data.promptTokens}`;
+                document.getElementById('contextTokens').textContent = `Tokens: ${data.contextTokens}`;
+                document.getElementById('totalTokens').textContent = data.totalTokens;
+            } catch (error) {
+                console.error('Error estimating tokens:', error);
+            }
+        }
+
+        // Debounced version of updateTokenCount
+        const debouncedUpdateTokenCount = debounce(updateTokenCount, 500);
+
+        // Add event listeners for input changes
+        document.getElementById('prompt').addEventListener('input', debouncedUpdateTokenCount);
+        document.getElementById('context').addEventListener('input', debouncedUpdateTokenCount);
+        document.getElementById('model').addEventListener('change', debouncedUpdateTokenCount);
+
+        function toggleJsonView() {
+            isJsonView = !isJsonView;
+            const responseElem = document.getElementById('response');
+            const toggleJsonButton = document.getElementById('toggleJsonButton');
+
+            if (!lastResponse) return;
+
+            if (isJsonView) {
+                responseElem.textContent = JSON.stringify(lastResponse, null, 2);
+                toggleJsonButton.textContent = 'Show Response Only';
+            } else {
+                responseElem.textContent = lastResponse.fullResponse || lastResponse.final?.response || '';
+                toggleJsonButton.textContent = 'Show Full JSON';
+            }
+        }
+
+        function formatTimestamp(timestamp) {
+            return new Date(timestamp).toLocaleTimeString();
+        }
+
+        function updateConversationHistory(messages) {
+            const historyElem = document.getElementById('conversationHistory');
+            historyElem.innerHTML = '';
+            
+            messages.forEach(message => {
+                if (message.role === 'system') return; // Skip system messages in display
+                
+                const messageDiv = document.createElement('div');
+                messageDiv.className = `message ${message.role}`;
+                if (message.edited) messageDiv.classList.add('edited');
+                
+                const content = document.createElement('div');
+                content.className = 'content';
+                content.textContent = message.content;
+                
+                const timestamp = document.createElement('div');
+                timestamp.className = 'timestamp';
+                timestamp.textContent = formatTimestamp(message.timestamp);
+                
+                const actions = document.createElement('div');
+                actions.className = 'actions';
+                
+                if (message.role === 'user') {
+                    const editButton = document.createElement('button');
+                    editButton.textContent = 'Edit';
+                    editButton.onclick = () => editMessage(message.id);
+                    actions.appendChild(editButton);
+                }
+                
+                const continueButton = document.createElement('button');
+                continueButton.textContent = 'Continue from here';
+                continueButton.onclick = () => continueFromMessage(message.id);
+                actions.appendChild(continueButton);
+                
+                messageDiv.appendChild(content);
+                messageDiv.appendChild(timestamp);
+                messageDiv.appendChild(actions);
+                historyElem.appendChild(messageDiv);
+            });
+            
+            historyElem.scrollTop = historyElem.scrollHeight;
+        }
+
+        async function createNewBranch() {
+            try {
+                const response = await fetch('/api/branch', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        parentId: currentConversationId
+                    })
+                });
+                
+                const data = await response.json();
+                currentConversationId = data.conversationId;
+                currentMessageId = null;
+                
+                alert('Created new conversation branch');
+            } catch (error) {
+                console.error('Error creating branch:', error);
+                alert('Error creating branch: ' + error.message);
+            }
+        }
+
+        async function editMessage(messageId) {
+            const messages = document.querySelectorAll('.message');
+            const messageDiv = Array.from(messages).find(div => div.querySelector('.content').dataset.messageId === messageId);
+            
+            if (!messageDiv) return;
+            
+            const content = messageDiv.querySelector('.content');
+            const originalText = content.textContent;
+            
+            const textarea = document.createElement('textarea');
+            textarea.value = originalText;
+            textarea.style.width = '100%';
+            textarea.style.minHeight = '100px';
+            
+            content.replaceWith(textarea);
+            textarea.focus();
+            
+            textarea.onblur = async () => {
+                const newText = textarea.value.trim();
+                if (newText !== originalText) {
+                    try {
+                        const response = await fetch('/api/edit', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                            },
+                            body: JSON.stringify({
+                                conversationId: currentConversationId,
+                                messageId: messageId,
+                                content: newText
+                            })
+                        });
+                        
+                        const data = await response.json();
+                        if (data.messages) {
+                            updateConversationHistory(data.messages);
+                        }
+                    } catch (error) {
+                        console.error('Error editing message:', error);
+                        alert('Error editing message: ' + error.message);
+                    }
+                }
+                
+                const newContent = document.createElement('div');
+                newContent.className = 'content';
+                newContent.textContent = newText;
+                newContent.dataset.messageId = messageId;
+                textarea.replaceWith(newContent);
+            };
+        }
+
+        function continueFromMessage(messageId) {
+            currentMessageId = messageId;
+            document.getElementById('prompt').focus();
+        }
+    </script>
+</body>
+</html> 

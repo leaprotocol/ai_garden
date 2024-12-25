@@ -12,7 +12,7 @@ const wss = new WebSocketServer({ port: 8080 }); // Instantiate WebSocket server
 wss.on('connection', (ws) => handleWebSocketConnection(ws, logBox, clientsBox, updateUIOnConnection, updateUIOnDisconnection, updateUILog));
 
 // Start the server
-const port = 3000;
+const port = 3003;
 const statusMessage = `Server is running on port ${port}`;
 statusBox.setContent(statusMessage);
 updateUILog(logBox, `[INFO] ${statusMessage}`);

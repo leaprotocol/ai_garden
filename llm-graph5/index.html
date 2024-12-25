@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>LLM Graph 5</title>
+  <meta charset="UTF-8" />
+  <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+  <style>
+    body { margin: 0; padding: 20px; font-family: system-ui; }
+    #menu { margin-bottom: 20px; }
+    button { 
+      padding: 8px 16px;
+      margin-right: 8px;
+      border: none;
+      background: #4a5568;
+      color: white;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    button:hover { background: #2d3748; }
+    #workspace {
+      background: white;
+      border-radius: 8px;
+      padding: 20px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+    .mermaid { background: white; }
+  </style>
+</head>
+<body>
+  <div id="menu">
+    <button onclick="createNode('llm')">Add LLM Node</button>
+    <button onclick="createNode('timer')">Add Timer Node</button>
+    <button onclick="createNode('output')">Add Output Node</button>
+    <button onclick="clearGraph()">Clear Graph</button>
+    <button onclick="saveGraph()">Save Graph</button>
+    <button onclick="loadGraph()">Load Graph</button>
+  </div>
+  <div id="workspace">
+    <div class="mermaid" id="mermaidGraph">
+      graph LR;
+    </div>
+  </div>
+  <script type="module">
+    import { EventSystem } from './events.js';
+    
+    mermaid.initialize({ 
+      startOnLoad: true,
+      theme: 'base',
+      flowchart: {
+        curve: 'monotoneX',
+        nodeSpacing: 100,
+        rankSpacing: 80,
+        padding: 40,
+        htmlLabels: true
+      },
+      themeVariables: {
+        fontFamily: 'system-ui',
+        fontSize: '16px',
+        primaryColor: '#4a5568',
+        primaryTextColor: '#2d3748',
+        lineColor: '#718096'
+      }
+    });
+    
+    window.eventSystem = new EventSystem();
+    window.createNode = (type) => eventSystem.createNode(type);
+    window.clearGraph = () => eventSystem.clearGraph();
+    window.saveGraph = () => eventSystem.saveGraph();
+    window.loadGraph = () => eventSystem.loadGraph();
+  </script>
+</body>
+</html> 

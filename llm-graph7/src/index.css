@@ -1,0 +1,239 @@
+/* src/index.css */
+
+/* Global Styles */
+html, body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+  font-family: Arial, sans-serif;
+  background-color: #f0f0f0;
+}
+
+#root {
+  height: 100%;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Toolbar Styles */
+.toolbar {
+  border-bottom: 1px solid #eee;
+  padding: 8px;
+  background-color: #ffffff;
+}
+
+.toolbar button {
+  margin-right: 8px;
+  padding: 8px 16px;
+  background-color: #2196F3;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.toolbar button:hover {
+  background-color: #1976D2;
+}
+
+/* Workspace Styles */
+.workspace {
+  flex: 1;
+  position: relative;
+  background-color: #ffffff;
+  overflow: hidden;
+  padding: 16px;
+}
+
+/* React Flow Wrapper */
+.reactflow-wrapper {
+  height: 100%;
+}
+
+/* Node Styles */
+.llm-node, .timer-node {
+  padding: 10px;
+  border-radius: 5px;
+  background: white;
+  border: 1px solid #ddd;
+  min-width: 150px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.llm-node .node-header, .timer-node .node-header {
+  font-weight: 500;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #eee;
+  margin-bottom: 8px;
+}
+
+.llm-node .node-content, .timer-node .node-content {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.llm-node select,
+.llm-node textarea,
+.timer-node select,
+.timer-node textarea {
+  width: 100%;
+  padding: 4px;
+  border: 1px solid #ddd;
+  border-radius: 3px;
+}
+
+.llm-node textarea,
+.timer-node textarea {
+  min-height: 80px;
+  resize: vertical;
+}
+
+/* Dragging Styles */
+.node.dragging {
+  opacity: 0.8;
+  cursor: grabbing;
+}
+
+.timer-node, .output-node {
+  padding: 10px;
+  background: #fff;
+  border: 1px solid #ddd;
+  border-radius: 5px;
+  box-shadow: 2px 2px 5px rgba(0, 0, 0, 0.1);
+}
+
+.node-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.node-controls button {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.output-content {
+  font-size: 12px;
+}
+
+/* Dragging Styles */
+.node.dragging {
+  opacity: 0.8;
+  cursor: grabbing;
+}
+
+.react-flow__node {
+  cursor: grab;
+}
+
+.react-flow__node:active {
+  cursor: grabbing;
+}
+
+.basic-node {
+  background: #fff;
+  border: 1px solid #222;
+  padding: 10px;
+  border-radius: 3px;
+  width: 150px;
+}
+
+.timer-node, .output-node {
+  min-width: 150px;
+  background: white;
+}
+
+.react-flow__handle {
+  width: 8px;
+  height: 8px;
+  background: #555;
+}
+
+.react-flow__handle-left {
+  left: -4px;
+}
+
+.react-flow__handle-right {
+  right: -4px;
+}
+
+.dndflow {
+  flex-direction: column;
+  display: flex;
+  height: 100%;
+}
+
+.dndflow aside {
+  border-right: 1px solid #eee;
+  padding: 15px 10px;
+  font-size: 12px;
+  background: #fcfcfc;
+}
+
+.dndflow .dndnode {
+  height: 20px;
+  padding: 4px;
+  border: 1px solid #1a192b;
+  border-radius: 2px;
+  margin-bottom: 10px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  cursor: grab;
+}
+
+.dndflow .dndnode.input {
+  border-color: #0041d0;
+}
+
+.dndflow .dndnode.output {
+  border-color: #ff0072;
+}
+
+.dndflow .reactflow-wrapper {
+  flex-grow: 1;
+  height: 100%;
+}
+
+.dndflow .selectall {
+  margin-top: 10px;
+}
+
+@media screen and (min-width: 768px) {
+  .dndflow {
+    flex-direction: row;
+  }
+
+  .dndflow aside {
+    width: 20%;
+    max-width: 250px;
+  }
+}
+
+.react-flow__node-custom {
+  padding: 10px;
+  background-color: white;
+  border: 1px solid #555;
+  border-radius: 5px;
+  cursor: grab;
+}
+
+.react-flow__node-custom.selected {
+  box-shadow: 0 0 0 0.5px #555;
+}
+
+.react-flow__node-custom:hover {
+  box-shadow: 0 1px 4px 1px rgba(0, 0, 0, 0.08);
+}
+
+.react-flow__node-custom.dragging {
+  cursor: grabbing;
+}

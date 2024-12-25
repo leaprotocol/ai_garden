@@ -4,17 +4,58 @@
   "main": "index.js",
   "type": "module",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "analyze": "node photollama/photo_analyzer.js",
+    "serve": "node photollama/server.js",
+    "graph": "nodemon --watch llm-graph -e js,html,css --exec 'node llm-graph/server/server.js'",
+    "graph2": "nodemon --watch llm-graph2 -e js,html,css --exec 'node llm-graph2/server/server.js'",
+    "graph3": "vite llm-graph3",
+    "graph3:build": "vite build llm-graph3",
+    "flow": "flow",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage",
+    "dev": "npm run dev -w llm-graph4",
+    "build": "npm run build -w llm-graph4",
+    "graph7:dev": "npm run dev -w llm-graph7",
+    "graph7:server": "npm run server -w llm-graph7",
+    "ollama": "nodemon --watch ollama-demo -e js,html,css --exec 'node ollama-demo/server/server.js'"
   },
+  "workspaces": [
+    "llm-graph7"
+  ],
   "author": "",
   "license": "ISC",
   "description": "",
   "dependencies": {
+    "@huggingface/transformers": "^3.2.2",
     "@langchain/openai": "^0.2.7",
     "chalk": "^5.3.0",
     "dotenv": "^16.4.5",
     "epub": "^1.2.1",
+    "express": "^4.21.2",
     "gpt4all": "^4.0.0",
-    "langchain": "^0.2.17"
+    "langchain": "^0.2.17",
+    "leader-line-new": "^1.1.9",
+    "ollama": "^0.5.8",
+    "preact": "^10.25.3",
+    "reactflow": "^11.10.1",
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "@babel/core": "^7.26.0",
+    "@babel/plugin-transform-modules-commonjs": "^7.26.3",
+    "@babel/plugin-transform-react-jsx": "^7.25.9",
+    "@babel/preset-env": "^7.26.0",
+    "@babel/preset-flow": "^7.25.9",
+    "@preact/preset-vite": "^2.8.1",
+    "babel-jest": "^29.7.0",
+    "chai": "^5.1.2",
+    "flow-bin": "^0.257.0",
+    "jest": "^29.7.0",
+    "jest-environment-jsdom": "^29.7.0",
+    "jsdom": "^24.0.0",
+    "mocha": "^11.0.1",
+    "nodemon": "^3.1.0",
+    "vite": "^5.1.4"
   }
 }

@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>LLM Flow</title>
+    <script src="https://cdn.jsdelivr.net/npm/leader-line-new"></script>
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+    <div id="menu">
+        <button onclick="addNode()">Add Node</button>
+        <button onclick="clearWorkspace()">Clear All</button>
+        <button onclick="saveFlow()">Save Flow</button>
+        <button onclick="loadFlow()">Load Flow</button>
+        <button onclick="refreshModels()">Refresh Models</button>
+    </div>
+    <div id="workspace"></div>
+    
+    <script src="js/nodes.js"></script>
+    <script src="js/connections.js"></script>
+    <script src="js/websocket.js"></script>
+    <script src="js/main.js"></script>
+    <script src="js/fileSystem.js"></script>
+</body>
+</html> 

@@ -263,3 +263,20 @@ fabric.properties
 .idea/**/azureSettings.xml
 
 # End of https://www.toptal.com/developers/gitignore/api/webstorm
+
+# Turbo
+.turbo/
+
+# Graph state files
+**/graph-state.json
+
+# Additional IDE files
+.idea
+.idea/**/*
+
+# Build directories
+**/dist/
+**/build/
+
+# Local development files
+**/cookies/

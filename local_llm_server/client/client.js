@@ -17,6 +17,7 @@ const threads = [
     }
 ];
 
+
 threads.forEach(thread => {
     let template = `
 <start_of_turn>system

@@ -1,0 +1,23 @@
+{
+  "name": "ai_garden",
+  "version": "1.0.0",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "graph2": "nodemon --watch llm-graph2 -e js,html,css --exec 'node llm-graph2/server/server.js'",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage"
+  },
+  "dependencies": {
+    "express": "^4.21.2",
+    "leader-line-new": "^1.0.7",
+    "ws": "^8.18.0"
+    // Add other dependencies as needed
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.0",
+    "jest": "^29.7.0"
+    // Add other devDependencies as needed
+  }
+}
