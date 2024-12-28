@@ -26,29 +26,26 @@ class ColoredFormatter(logging.Formatter):
     RESET = '\033[0m'
 
     def format(self, record):
+        # Apply color to the levelname
         color = self.COLOR_MAP.get(record.levelname, self.RESET)
         record.levelname = f"{color}{record.levelname}{self.RESET}"
-        record.msg = f"{color}{record.msg}{self.RESET}"
-        return super().format(record)
+        
+        # Format the message
+        original_msg = super().format(record)
+        
+        # Apply color to the entire message
+        return f"{color}{original_msg}{self.RESET}"
 
-# Configure logging with ColoredFormatter
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)  # Set to DEBUG to log all levels
 
-# Create console handler and set level to DEBUG
-ch = logging.StreamHandler()
-ch.setLevel(logging.DEBUG)
+# Remove all existing handlers
+if logger.hasHandlers():
+    logger.handlers.clear()
 
-# Create formatter and add it to the handler
-formatter = ColoredFormatter('%(asctime)s - %(levelname)s - %(message)s')
-ch.setFormatter(formatter)
-
-# Add the handler to the logger
-if not logger.handlers:
-    logger.addHandler(ch)
-else:
-    logger.handlers = []  # Clear existing handlers
-    logger.addHandler(ch)
+logger.setLevel(logging.DEBUG)
+handler = logging.StreamHandler()
+handler.setFormatter(ColoredFormatter('%(asctime)s - %(levelname)s - %(message)s'))
+logger.addHandler(handler)
 
 # Generation seeds configuration
 GENERATION_SEEDS = [111, 222, 222]  # First different, last two same
