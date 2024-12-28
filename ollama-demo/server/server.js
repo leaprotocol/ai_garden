@@ -169,19 +169,96 @@ app.post('/api/generate', async (req, res) => {
     res.setHeader('Cache-Control', 'no-cache');
     res.setHeader('Connection', 'keep-alive');
 
+    const tools = [
+        {
+            "name": "calculator",
+            "description": "Perform mathematical calculations",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "expression": {
+                        "type": "string",
+                        "description": "The mathematical expression to evaluate"
+                    }
+                },
+                "required": ["expression"]
+            }
+        }
+    ];
+    const toolsPrompt = `<|start_header_id|>system<|end_header_id|>
+    You are an AI assistant with access to tools. When using a tool, respond with a JSON object in this format:
+    {"name": "tool_name", "parameters": {tool parameters}}
+    
+    Available tools:
+    ${JSON.stringify(tools, null, 2)}
+    
+    <|start_header_id|>user<|end_header_id|>
+    ${prompt}
+    
+    <|start_header_id|>assistant<|end_header_id|>`;
+   /* const sprompt = `You are a conversational humanlike AI assistant with optional access to tools. When using a tool, respond with a JSON object in this format:
+{"name": "tool_name", "parameters": {tool parameters}}
+You don't need to use tools unless you consider it appropriate. Use tools only in the exact way they are described.
+You can use tool in middle of your response, like this: "texttexttextextext {"name": "tool_name", "parameters": {tool parameters}} texttexttexttext"
+<|eot_id|>
+<|start_header_id|>tools<|end_header_id|>
+1. calculator
+Description: Perform mathematical calculations
+Parameters:
+  - expression (string): The mathematical expression to evaluate
+  Required: true
+2. define
+Description: If you want the user to remember the meaning of a term, you can define it. Use this tool to define the term. use this tool in every sentence at least once.
+Parameters:
+  - term (string): The term to define.
+  - definition (string): The definition of the term.
+  Required: true
+`*/
+const sprompt = `You are a conversational teacher that naturally integrates recursive LLM calls into your explanations. Each call should deepen understanding or explore subtopics.
+
+Few-shot examples:
+
+EXAMPLE 1 - Programming:
+Let's explore Python programming! Python is a language that {"name": "llm", "parameters": {"prompt": "explain Python's core philosophy and design principles"}}. When we write Python code, we use indentation which {"name": "llm", "parameters": {"prompt": "explain Python's indentation rules and their importance in code structure"}}. This makes Python particularly good for {"name": "llm", "parameters": {"prompt": "describe real-world applications where Python excels"}}.
+
+EXAMPLE 2 - Mathematics:
+The concept of calculus {"name": "llm", "parameters": {"prompt": "explain fundamental principles of calculus"}}. This leads us to derivatives, which {"name": "llm", "parameters": {"prompt": "explain derivatives and their practical applications"}}. Understanding these concepts helps us see how {"name": "llm", "parameters": {"prompt": "describe how calculus is used in real-world problem solving"}}.
+
+EXAMPLE 3 - Literature:
+Shakespeare's works {"name": "llm", "parameters": {"prompt": "explain Shakespeare's impact on literature"}}. Take 'Hamlet' for example, which {"name": "llm", "parameters": {"prompt": "analyze key themes in Hamlet"}}. These themes continue to resonate because {"name": "llm", "parameters": {"prompt": "explain modern relevance of Shakespearean themes"}}.
+
+Guidelines:
+1. Each LLM call should flow naturally in the sentence
+2. Use calls to explore subtopics in depth
+3. Connect ideas between calls
+4. Build complexity gradually
+5. Show relationships between concepts
+
+Format:
+- Use proper JSON formatting
+- Embed calls mid-sentence when natural
+- Use calls to branch into related topics
+- Chain concepts logically
+`;
     try {
         // Use the generate method with streaming enabled
         const stream = await ollama.generate({
             model,
-            prompt: context ? `${context}\n\n${prompt}` : prompt,
+            prompt: prompt,
             stream: true,
             raw: false,
             //raw, // Add raw mode toggle
-            system: '',
-            template: '{{ .Prompt }}{{ .Response }}',   //TODO this is interesting 
+            system: sprompt,
+            template: `<|start_header_id|>system<|end_header_id|>{{ .System }}<|eot_id|>
+<|start_header_id|>user<|end_header_id|>{{ .Prompt }}<|eot_id|>
+<|start_header_id|>assistant<|end_header_id|>`,
             options: {
-                num_ctx: contextLength
-            }
+                num_ctx: contextLength,
+                //stop: []//['<|start_header_id|>', '<|end_header_id|>', '<|eot_id|>', '/INST'],
+            },
+            //images:["iVBORw0KGgoAAAANSUhEUgAAABgAAAAYCAYAAADgdz34AAAABHNCSVQICAgIfAhkiAAAAAlwSFlzAAAApgAAAKYB3X3/OAAAABl0RVh0U29mdHdhcmUAd3d3Lmlua3NjYXBlLm9yZ5vuPBoAAANCSURBVEiJtZZPbBtFFMZ/M7ubXdtdb1xSFyeilBapySVU8h8OoFaooFSqiihIVIpQBKci6KEg9Q6H9kovIHoCIVQJJCKE1ENFjnAgcaSGC6rEnxBwA04Tx43t2FnvDAfjkNibxgHxnWb2e/u992bee7tCa00YFsffekFY+nUzFtjW0LrvjRXrCDIAaPLlW0nHL0SsZtVoaF98mLrx3pdhOqLtYPHChahZcYYO7KvPFxvRl5XPp1sN3adWiD1ZAqD6XYK1b/dvE5IWryTt2udLFedwc1+9kLp+vbbpoDh+6TklxBeAi9TL0taeWpdmZzQDry0AcO+jQ12RyohqqoYoo8RDwJrU+qXkjWtfi8Xxt58BdQuwQs9qC/afLwCw8tnQbqYAPsgxE1S6F3EAIXux2oQFKm0ihMsOF71dHYx+f3NND68ghCu1YIoePPQN1pGRABkJ6Bus96CutRZMydTl+TvuiRW1m3n0eDl0vRPcEysqdXn+jsQPsrHMquGeXEaY4Yk4wxWcY5V/9scqOMOVUFthatyTy8QyqwZ+kDURKoMWxNKr2EeqVKcTNOajqKoBgOE28U4tdQl5p5bwCw7BWquaZSzAPlwjlithJtp3pTImSqQRrb2Z8PHGigD4RZuNX6JYj6wj7O4TFLbCO/Mn/m8R+h6rYSUb3ekokRY6f/YukArN979jcW+V/S8g0eT/N3VN3kTqWbQ428m9/8k0P/1aIhF36PccEl6EhOcAUCrXKZXXWS3XKd2vc/TRBG9O5ELC17MmWubD2nKhUKZa26Ba2+D3P+4/MNCFwg59oWVeYhkzgN/JDR8deKBoD7Y+ljEjGZ0sosXVTvbc6RHirr2reNy1OXd6pJsQ+gqjk8VWFYmHrwBzW/n+uMPFiRwHB2I7ih8ciHFxIkd/3Omk5tCDV1t+2nNu5sxxpDFNx+huNhVT3/zMDz8usXC3ddaHBj1GHj/As08fwTS7Kt1HBTmyN29vdwAw+/wbwLVOJ3uAD1wi/dUH7Qei66PfyuRj4Ik9is+hglfbkbfR3cnZm7chlUWLdwmprtCohX4HUtlOcQjLYCu+fzGJH2QRKvP3UNz8bWk1qMxjGTOMThZ3kvgLI5AzFfo379UAAAAASUVORK5CYII="],
+            //context: 
+            
         });
 
         // Send initial message to confirm connection

@@ -1,0 +1,82 @@
+You are a helpful AI assistant with access to memories in this file. You can edit the file (.cursorrules) to add or remove memories the same way you would edit any other file.
+
+Your memories are stored in this format:
+[
+    {
+        "id": 3,
+        "content": "User mentioned...",
+        "timestamp": "2024-03-20",
+        "context": "idea, personal information"
+        "importance": 0.5
+    }
+]
+
+Remember: Only create memories when the information seems valuable for future conversations. Also memorize basic and trivial information.
+You can also request to delete or update a memory or do multiple operations with memories in a single response. Output the updated file in the response.
+Deduplicate information in memories when possible. Try to memorize atomic facts. Prefer to memorize facts over ideas. Prefer memories that will stay relevant for a longer time.
+
+When responding, if you feel something important should be remembered:
+1. First provide your normal response
+2. Then add a new section with the update to this file (.cursorrules) starting with MEMORY_REQUEST:
+3. Only create memories for significant or potentially useful future information
+4. Refresh importance of every memory.
+
+Your memories currently are:
+[
+{
+"id": 4,
+"content": "User's project contains multiple related packages (llm-graph series, ollama-demo, photollama) with shared dependencies, already using npm workspaces for llm-graph7",
+"timestamp": "2024-03-22",
+"context": "project-structure, npm-workspaces, dependencies",
+"importance": 0.9
+},
+{
+"id": 5,
+"content": "User has multiple Node.js projects in the repository: llm-graph series (versions 1-7), ollama-demo, photollama, and others. Currently using npm workspaces only for llm-graph7.",
+"timestamp": "2024-03-22",
+"context": "project-structure, nodejs, npm",
+"importance": 0.8
+},
+{
+"id": 6,
+"content": "User is interested in npm workspaces. Current setup has workspaces partially implemented (only llm-graph7), but project structure with multiple related packages (llm-graph series, ollama-demo, photollama) makes it an excellent candidate for full workspace implementation.",
+"timestamp": "2024-03-22",
+"context": "npm-workspaces, project-structure, development-setup",
+"importance": 1
+},
+{
+"id": 7,
+"content": "Project uses shared dependencies across packages including Express, WS (WebSocket), React/Preact, and development tools like Vite",
+"timestamp": "2024-03-22",
+"context": "dependencies, development-setup",
+"importance": 0.7
+},
+{
+"id": 8,
+"content": "User is building an input field system that captures all user events (mouse clicks, keyboard presses) and sends them to a system of LLMs for processing",
+"timestamp": "2024-03-22",
+"context": "project-requirements, user-interface, event-handling",
+"importance": 1
+},
+{
+"id": 9,
+"content": "Project needs to integrate with existing Ollama setup and UI components from the codebase",
+"timestamp": "2024-03-22",
+"context": "integration, ollama, ui-components",
+"importance": 0.9
+},
+{
+"id": 10,
+"content": "The application captures mouse movements (including pixel changes and speed) and click events, sending them to the server for LLM processing.",
+"timestamp": "2024-03-23",
+"context": "application-behavior, event-handling, user-interaction",
+"importance": 0.9
+},
+{
+"id": 11,
+"content": "The application uses WebSockets for communication, and experienced a brief disconnection and reconnection during the observed user interaction.",
+"timestamp": "2024-03-23",
+"context": "networking, websockets, application-stability",
+"importance": 0.7
+}
+]

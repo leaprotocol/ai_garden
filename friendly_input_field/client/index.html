@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Friendly Input Field</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <div class="input-section">
+            <div class="model-controls">
+                <select id="modelSelect" class="model-select">
+                    <option value="llama2:7b-chat">Loading models...</option>
+                </select>
+                <button id="refreshModels" class="refresh-button">↻</button>
+            </div>
+            <textarea id="userInput" placeholder="Start typing..."></textarea>
+            <div class="event-controls">
+                <div class="event-counter">Events: <span id="eventCount">0</span></div>
+                <button id="processEvents" class="event-button">Process Events</button>
+                <button id="clearEvents" class="event-button">Clear Queue</button>
+            </div>
+        </div>
+        
+        <div class="output-section">
+            <div class="event-history">
+                <h3>Event History</h3>
+                <div id="eventList"></div>
+            </div>
+            <div class="llm-responses">
+                <h3>LLM Responses</h3>
+                <div id="responseArea"></div>
+            </div>
+        </div>
+
+        <div class="debug-panel" id="debugPanel">
+            <h3>Debug Information</h3>
+            <div class="connection-status">
+                WebSocket: <span id="wsStatus">Disconnected</span>
+            </div>
+            <div class="model-status">
+                Selected Model: <span id="currentModel">None</span>
+            </div>
+            <pre id="debugOutput"></pre>
+        </div>
+    </div>
+    
+    <script type="module" src="js/main.js"></script>
+</body>
+</html> 

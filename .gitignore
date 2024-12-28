@@ -280,3 +280,6 @@ fabric.properties
 
 # Local development files
 **/cookies/
+.venv/
+**/*.pt
+**/*.pyc

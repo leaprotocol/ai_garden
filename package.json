@@ -18,10 +18,11 @@
     "build": "npm run build -w llm-graph4",
     "graph7:dev": "npm run dev -w llm-graph7",
     "graph7:server": "npm run server -w llm-graph7",
-    "ollama": "nodemon --watch ollama-demo -e js,html,css --exec 'node ollama-demo/server/server.js'"
+    "ollama-demo": "nodemon --watch ollama-demo -e js,html,css --exec 'node ollama-demo/server/server.js'"
   },
   "workspaces": [
-    "llm-graph7"
+    "llm-graph7",
+    "friendly_input_field"
   ],
   "author": "",
   "license": "ISC",
