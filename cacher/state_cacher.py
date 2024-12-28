@@ -5,6 +5,11 @@ import logging
 import gc
 import os
 
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s'
+)
 logger = logging.getLogger(__name__)
 
 class StateCacher:
@@ -110,23 +115,20 @@ class StateCacher:
         self,
         cached_state: Dict[str, Any],
         suffix: str,
-        max_new_tokens: int = 50,
-        seed: Optional[int] = None
+        max_new_tokens: int = 50
     ) -> str:
-        """
-        Generate continuation based on a suffix using cached state with optional seeding.
+        """Generate continuation based on a suffix using cached state.
         
         Args:
             cached_state: Dictionary containing 'cache', 'input_ids', and 'attention_mask'
             suffix: The suffix to append and generate continuation from
             max_new_tokens: Maximum number of new tokens to generate
-            seed: Optional seed for reproducibility
         
         Returns:
             The generated continuation as a string
         """
-        logger.debug(f"Generating continuation with suffix: '{suffix}' and seed: {seed}")
-        logger.info(f"Generating continuation for suffix: {suffix[:50]}... with seed: {seed}")
+        logger.debug(f"Generating continuation with suffix: '{suffix}'")
+        logger.info(f"Generating continuation for suffix: {suffix[:50]}...")
 
         try:
             # Retrieve original input_ids and attention_mask
@@ -158,12 +160,6 @@ class StateCacher:
             logger.debug(f"New input_ids shape: {new_input_ids.shape}")
             logger.debug(f"New attention_mask shape: {new_attention_mask.shape}")
 
-            # Set up the generator with the specified seed for reproducibility
-            generator = None
-            if seed is not None:
-                logger.debug(f"Setting seed for generation: {seed}")
-                generator = torch.Generator(device=self.device).manual_seed(seed)
-
             # Generate continuation
             gen_outputs = self.model.generate(
                 input_ids=new_input_ids,
@@ -174,8 +170,7 @@ class StateCacher:
                 temperature=0.7,
                 top_p=0.9,
                 pad_token_id=self.tokenizer.pad_token_id,
-                use_cache=True,
-                generator=generator  # Incorporate the generator with seed
+                use_cache=True
             )
             
             logger.debug(f"Generated sequences shape: {gen_outputs.shape}")
