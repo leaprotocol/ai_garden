@@ -1,3 +1,4 @@
+
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer
 from typing import List, Tuple, Optional, Dict, Any
@@ -118,12 +119,12 @@ class StateCacher:
         max_new_tokens: int = 50
     ) -> str:
         """Generate continuation based on a suffix using cached state.
-        
+
         Args:
             cached_state: Dictionary containing 'cache', 'input_ids', and 'attention_mask'
             suffix: The suffix to append and generate continuation from
             max_new_tokens: Maximum number of new tokens to generate
-        
+
         Returns:
             The generated continuation as a string
         """
@@ -172,7 +173,81 @@ class StateCacher:
                 pad_token_id=self.tokenizer.pad_token_id,
                 use_cache=True
             )
-            
+
+            logger.debug(f"Generated sequences shape: {gen_outputs.shape}")
+
+            # Decode the generated sequences
+            continuation = self.tokenizer.decode(gen_outputs[0], skip_special_tokens=True)
+            logger.info(f"Generated continuation length: {len(continuation.split())} words")
+
+            return continuation
+
+        except Exception as e:
+            logger.error(f"Error in generate_continuation: {str(e)}", exc_info=True)
+            raise
+
+    def generate_continuation(
+        self,
+        cached_state: Dict[str, Any],
+        suffix: str,
+        max_new_tokens: int = 50
+    ) -> str:
+        """Generate continuation based on a suffix using cached state.
+
+        Args:
+            cached_state: Dictionary containing 'cache', 'input_ids', and 'attention_mask'
+            suffix: The suffix to append and generate continuation from
+            max_new_tokens: Maximum number of new tokens to generate
+
+        Returns:
+            The generated continuation as a string
+        """
+        logger.debug(f"Generating continuation with suffix: '{suffix}'")
+        logger.info(f"Generating continuation for suffix: {suffix[:50]}...")
+
+        try:
+            # Retrieve original input_ids and attention_mask
+            original_input_ids = cached_state['input_ids']
+            original_attention_mask = cached_state['attention_mask']
+            past_key_values = cached_state['cache']
+
+            logger.debug(f"Original input_ids shape: {original_input_ids.shape}")
+            logger.debug(f"Original attention_mask shape: {original_attention_mask.shape}")
+            logger.debug(f"Length of past_key_values: {len(past_key_values)}")
+            logger.debug(f"Shape of past_key_values[0][0]: {past_key_values[0][0].shape}")
+
+            # Tokenize the suffix
+            suffix_inputs = self.tokenizer(
+                suffix,
+                return_tensors="pt"
+            ).to(self.device)
+
+            suffix_ids = suffix_inputs.input_ids
+            suffix_attention_mask = suffix_inputs.attention_mask
+
+            logger.debug(f"Suffix input_ids shape: {suffix_ids.shape}")
+            logger.debug(f"Suffix attention_mask shape: {suffix_attention_mask.shape}")
+
+            # Concatenate original input_ids with suffix_ids
+            new_input_ids = torch.cat([original_input_ids, suffix_ids], dim=1)
+            new_attention_mask = torch.cat([original_attention_mask, suffix_attention_mask], dim=1)
+
+            logger.debug(f"New input_ids shape: {new_input_ids.shape}")
+            logger.debug(f"New attention_mask shape: {new_attention_mask.shape}")
+
+            # Generate continuation
+            gen_outputs = self.model.generate(
+                input_ids=new_input_ids,
+                attention_mask=new_attention_mask,
+                past_key_values=past_key_values,
+                max_new_tokens=max_new_tokens,
+                do_sample=True,
+                temperature=0.7,
+                top_p=0.9,
+                pad_token_id=self.tokenizer.pad_token_id,
+                use_cache=True
+            )
+
             logger.debug(f"Generated sequences shape: {gen_outputs.shape}")
 
             # Decode the generated sequences
