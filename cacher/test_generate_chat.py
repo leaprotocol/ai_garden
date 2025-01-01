@@ -1,7 +1,7 @@
 import torch
 from transformers import AutoTokenizer, AutoModelForCausalLM
 import torch.nn.functional as F
-from typing import List, Tuple, Optional
+from typing import List, Tuple, Optional, Dict
 from rich import print
 from rich.table import Table
 from rich.console import Console
@@ -10,6 +10,7 @@ import seaborn as sns
 import pandas as pd
 import numpy as np
 from sklearn.metrics.pairwise import cosine_similarity
+import re
 
 # Initialize Rich Console
 console = Console()
@@ -226,13 +227,6 @@ def predict_token_probability(
     return token_probability
 
 
-def load_model(model_name: str = "HuggingFaceTB/SmolLM2-360M-Instruct"):
-    """Load model and tokenizer."""
-    tokenizer = AutoTokenizer.from_pretrained(model_name)
-    model = AutoModelForCausalLM.from_pretrained(model_name)
-    model.eval()
-    return tokenizer, model
-
 def visualize_sentence_probabilities(
     tokenizer, 
     model, 
@@ -256,7 +250,7 @@ def visualize_sentence_probabilities(
     
     # Tokenize the sentence
     words = sentence.split()
-    
+
     # Iterate over each word in the sentence
     for i in range(len(words)):
         # Create a partial sentence up to the current word
@@ -278,6 +272,7 @@ def visualize_sentence_probabilities(
         
         # Print the probability after the current word
         print(f"Probability of '{next_token}' after '{partial_sentence}': {token_probability:.4f}")
+
 
 def normalize_tokens(tokenizer, text: str) -> List[List[int]]:
     """
@@ -302,16 +297,30 @@ def normalize_tokens(tokenizer, text: str) -> List[List[int]]:
     
     return tokenizations
 
+
 def get_top_n_token_pairs(
     tokenizer, 
     model, 
     input_ids: torch.Tensor, 
     actual_next_words: str,
-    k: int = 5,
-    beam_width: int = 15  # Increase beam width to catch more variations
-) -> Tuple[List[Tuple[str, List[int], float]], float, List[int]]:
+    top_n: int = 5,  # Number of final pairs to return
+    beam_width: int = 15,  # Width for beam search
+    second_beam_width: int = 5  # Width for second token search
+) -> Tuple[List[Tuple[str, List[int], float]], Optional[float], List[int]]:
     """
     Get the top N most probable pairs of consecutive tokens with improved beam search.
+    
+    Args:
+        tokenizer: The tokenizer to use
+        model: The language model
+        input_ids: Input sequence tensor
+        actual_next_words: The actual next words to compare against
+        top_n: Number of top pairs to return
+        beam_width: Beam width for first token search
+        second_beam_width: Beam width for second token search
+    
+    Returns:
+        Tuple of (top pairs, actual pair probability, tokenization)
     """
     pairs = []
     actual_pair_prob = None
@@ -322,7 +331,7 @@ def get_top_n_token_pairs(
         next_token_logits = outputs.logits[0, -1, :]
         first_token_probs = F.softmax(next_token_logits, dim=-1)
     
-    # Increase beam width to catch more tokenization variations
+    # First token beam search
     top_first_probs, top_first_indices = torch.topk(first_token_probs, k=beam_width)
     
     # Track all variations of the first token
@@ -343,7 +352,8 @@ def get_top_n_token_pairs(
                 next_token_logits = outputs.logits[0, -1, :]
                 second_token_probs = F.softmax(next_token_logits, dim=-1)
             
-            top_second_probs, top_second_indices = torch.topk(second_token_probs, k)  # Increased from 5
+            # Second token beam search
+            top_second_probs, top_second_indices = torch.topk(second_token_probs, k=second_beam_width)
             
             for second_idx, second_prob in zip(top_second_indices, top_second_probs):
                 token_ids = [first_idx, second_idx.item()]
@@ -355,9 +365,11 @@ def get_top_n_token_pairs(
                     pairs.append((pair_text, token_ids, joint_prob))
                 
                 # Check all possible tokenizations
-                if any(pair_text == tokenizer.decode(t[:2]).strip() for t in possible_tokenizations):
-                    if actual_pair_prob is None or joint_prob > actual_pair_prob:
-                        actual_pair_prob = joint_prob
+                for tokenization in possible_tokenizations:
+                    decoded_pair = tokenizer.decode(token_ids).strip()
+                    if decoded_pair == tokenizer.decode(tokenization[:2]).strip():
+                        if actual_pair_prob is None or joint_prob > actual_pair_prob:
+                            actual_pair_prob = joint_prob
     
     # Sort by probability and deduplicate based on text
     pairs.sort(key=lambda x: x[2], reverse=True)
@@ -368,7 +380,8 @@ def get_top_n_token_pairs(
             seen.add(pair[0])
             unique_pairs.append(pair)
     
-    return unique_pairs[:k], actual_pair_prob, possible_tokenizations[0]
+    return unique_pairs[:top_n], actual_pair_prob, possible_tokenizations[0] if possible_tokenizations else []
+
 
 def print_token_info(tokenizer, text: str):
     """
@@ -390,6 +403,7 @@ def print_token_info(tokenizer, text: str):
         variant_ids = tokenizer.encode(variant, add_special_tokens=False)
         if variant_ids != token_ids:
             print(f"Different tokenization for '{variant}': {variant_ids}")
+
 
 def visualize_actual_next_word_probabilities(
     tokenizer, 
@@ -440,31 +454,32 @@ def visualize_actual_next_word_probabilities(
             else:
                 table.add_row(f"#{rank}", f"'{pair_text}'", f"{token_ids}", f"{prob:.4f}")
         
-        # Always add actual pair if it has a probability, even if it's 0
-        if not actual_in_top:
+        # Always add actual pair if it has a probability, even if it's not in top
+        if not actual_in_top and actual_pair_prob is not None:
             table.add_row("---", "---", "---", "---")
-            prob_str = f"{actual_pair_prob:.4f}" if actual_pair_prob is not None else "0.0000"
             table.add_row(
                 "N/A",
                 f"[bold red]'{actual_next_words}'[/bold red]",
                 f"[bold red]{actual_token_ids[:2]}[/bold red]",
-                f"[bold red]{prob_str}[/bold red]"
+                f"[bold red]{actual_pair_prob:.4f}[/bold red]"
             )
         
         console.print(table)
         console.print()
+
 
 def get_token_embeddings(model):
     """
     Extract token embeddings from the model's embedding layer.
     """
     # Most transformer models store embeddings in either wte or embed_tokens
-    if hasattr(model, 'transformer'):
+    if hasattr(model, 'transformer') and hasattr(model.transformer, 'wte'):
         return model.transformer.wte.weight
-    elif hasattr(model, 'model'):
+    elif hasattr(model, 'model') and hasattr(model.model, 'embed_tokens'):
         return model.model.embed_tokens.weight
     else:
         raise AttributeError("Could not find embedding layer")
+
 
 def get_color_for_similarity(sim: float) -> str:
     """
@@ -488,6 +503,7 @@ def get_color_for_similarity(sim: float) -> str:
         red = int(255 * (2 - normalized * 2))
         green = 255
         return f"[rgb({red},{green},0)]"
+
 
 def analyze_token_similarity(tokenizer, model, tokens_of_interest):
     """
@@ -550,13 +566,14 @@ def analyze_token_similarity(tokenizer, model, tokens_of_interest):
         print("\nMost similar tokens:")
         for token_id in token_ids:
             token_embed = embeddings[token_id].unsqueeze(0)
-            sims = F.cosine_similarity(token_embed, embeddings)
+            sims = F.cosine_similarity(torch.tensor(token_embed), embeddings)
             top_sims, top_ids = torch.topk(sims, k=5)
             
             print(f"\n{token_id} ('{all_tokens[token_id]}'):")
             for sim, tid in zip(top_sims, top_ids):
                 color = get_color_for_similarity(sim.item())
-                print(f"  {tokenizer.decode([tid])} ({tid}): {color}{sim:.3f}")
+                print(f"  {tokenizer.decode([tid.item()])} ({tid.item()}): {color}{sim.item():.3f}")
+
 
 def get_top_n_token_sequences(
     tokenizer, 
@@ -567,7 +584,7 @@ def get_top_n_token_sequences(
     top_k_beam_width: int = 5,
     temperature: float = 1.0,
     end_tokens: Optional[List[str]] = None
-) -> Tuple[List[Tuple[str, List[int], float, int]], dict]:
+) -> Tuple[List[Tuple[str, List[int], float, int, bool]], dict]:
     """
     Get the top K most probable sequences up to max_tokens length.
     """
@@ -651,14 +668,9 @@ def get_top_n_token_sequences(
                         stats['early_stops']['special_token'] += 1
                     else:
                         stats['early_stops']['punctuation'] += 1
+                    stats['completed_sequences'] += 1  # Only count if actually complete
                 
-                # Add to candidates if:
-                # 1. It's complete (ended with end token)
-                # 2. It's at max length
-                # 3. It's a shorter sequence with good probability
-                if is_complete or len(new_seq) == max_tokens or new_prob > 0.1:  # Threshold for keeping shorter sequences
-                    candidate_sequences.append((new_seq, new_prob, len(new_seq), is_complete))
-                    stats['completed_sequences'] += 1
+                candidate_sequences.append((new_seq, new_prob, len(new_seq), is_complete))
                 
                 # Continue sequence if not complete
                 if not is_complete:
@@ -688,6 +700,28 @@ def get_top_n_token_sequences(
     
     return results, stats
 
+
+def calculate_sequence_entropy(tokenizer, model, token_ids: List[int]) -> float:
+    """Calculate the entropy of a token sequence"""
+    total_entropy = 0.0
+    
+    # Convert token IDs to text first
+    text = tokenizer.decode(token_ids)
+    input_ids = tokenizer.encode(text, return_tensors='pt')
+    
+    with torch.no_grad():
+        outputs = model(input_ids)
+        logits = outputs.logits[0]
+        
+        # Calculate entropy for each position
+        for pos in range(len(input_ids[0]) - 1):  # -1 to avoid going past sequence
+            probs = F.softmax(logits[pos], dim=-1)
+            position_entropy = -torch.sum(probs * torch.log2(probs + 1e-10))
+            total_entropy += position_entropy.item()
+            
+    return total_entropy / len(input_ids[0])  # Average entropy per token
+
+
 def visualize_next_token_sequences(
     tokenizer,
     model,
@@ -696,12 +730,48 @@ def visualize_next_token_sequences(
     top_n_best: int = 5,
     top_k_beam_width: int = 5,
     temperature: float = 1.0,
-    end_tokens: Optional[List[str]] = None
+    end_tokens: Optional[List[str]] = None,
+    reverse: bool = False
 ):
     """
     Visualize the highest probability sequences and search statistics.
+    Optionally reverse the token order before prediction.
     """
     input_ids = tokenizer.encode(sentence, return_tensors='pt')
+    original_input_ids = input_ids.clone()  # Keep a copy of the original input
+    
+    if reverse:
+        # Reverse tokens
+        reversed_token_ids = reverse_tokens(tokenizer, input_ids[0].tolist())
+        input_ids = torch.tensor([reversed_token_ids])
+        print("\n[bold blue]Reversed Input Sequence Analysis:[/bold blue]")
+    else:
+        print("\n[bold blue]Input Sequence Analysis:[/bold blue]")
+    
+    # Add input sequence analysis
+    print("\n[bold blue]Input Sequence Analysis:[/bold blue]")
+    table = Table(show_header=True)
+    table.add_column("Position", justify="right", style="cyan")
+    table.add_column("Token ID", style="yellow")
+    table.add_column("Token", style="magenta")
+    table.add_column("Text", style="green")
+    
+    # Show each token in the input sequence
+    for pos, token_id in enumerate(input_ids[0]):
+        token = tokenizer.decode([token_id])
+        # Get a few tokens of context for this position
+        start = max(0, pos - 1)
+        end = min(len(input_ids[0]), pos + 2)
+        context = tokenizer.decode(input_ids[0][start:end])
+        table.add_row(
+            str(pos),
+            str(token_id.item()),
+            f"'{token}'",
+            f"'...{context}...'"
+        )
+    
+    console.print(table)
+    print(f"\n[bold blue]After: '{tokenizer.decode(input_ids[0])}' (token ids: {input_ids[0].tolist()})[/bold blue]")
     
     # Get predictions and stats
     sequences, stats = get_top_n_token_sequences(
@@ -713,7 +783,16 @@ def visualize_next_token_sequences(
         end_tokens=end_tokens
     )
     
-    # Create sequences table
+    # Reverse the output sequences if 'reverse' is True
+    if reverse:
+        reversed_sequences = []
+        for text, token_ids, prob, length, is_complete in sequences:
+            reversed_token_ids = reverse_tokens(tokenizer, token_ids)
+            reversed_text = tokenizer.decode(reversed_token_ids)
+            reversed_sequences.append((reversed_text, reversed_token_ids, prob, length, is_complete))
+        sequences = reversed_sequences
+    
+    # Create sequences table with entropy
     table = Table(title=f"Top {top_n_best} Sequences (up to {max_tokens} tokens)")
     table.add_column("Rank", justify="right", style="cyan")
     table.add_column("Length", justify="right", style="yellow")
@@ -721,19 +800,21 @@ def visualize_next_token_sequences(
     table.add_column("Sequence", style="magenta")
     table.add_column("Token IDs", style="yellow")
     table.add_column("Probability", justify="right", style="green")
+    table.add_column("Entropy", justify="right", style="red")  # New column
     
-    # Add sequences to table
+    # Add sequences to table with entropy
     for rank, (text, token_ids, prob, length, is_complete) in enumerate(sequences, 1):
+        entropy = calculate_sequence_entropy(tokenizer, model, token_ids)
         table.add_row(
             f"#{rank}",
             str(length),
             "✓" if is_complete else "",
             f"'{text}'",
             str(token_ids),
-            f"{prob:.6f}"
+            f"{prob:.6f}",
+            f"{entropy:.4f}"  # Add entropy value
         )
     
-    print(f"\n[bold blue]After: '{sentence}'[/bold blue]")
     console.print(table)
     
     # Create stats table
@@ -753,6 +834,202 @@ def visualize_next_token_sequences(
     console.print("\n")
     console.print(stats_table)
 
+    # Aggregate predictions
+    definitive_number, weighted_entropy, highest_confidence, df_aggregated = aggregate_predictions(sequences, verbose=True)
+    
+    # Optionally, you can use these values further in your application
+    # For example:
+    print(f"Definitive Number: {definitive_number}")
+    print(f"Weighted Average Entropy: {weighted_entropy}")
+    print(f"Highest Confidence Score: {highest_confidence}")
+
+
+def print_special_tokens(tokenizer):
+    """Print all special tokens and their IDs"""
+    print("\nSpecial Tokens:")
+    for token_name, token_id in tokenizer.special_tokens_map.items():
+        # Get the ID(s) for this special token
+        if isinstance(token_id, str):
+            ids = tokenizer.convert_tokens_to_ids(token_name)
+        else:
+            ids = token_id
+        print(f"{token_name}: '{token_id}' (ID: {ids})")
+    
+    # Also print the first few token IDs and their decoded values
+    print("\nFirst few token IDs:")
+    for i in range(6):
+        token = tokenizer.decode([i])
+        print(f"ID {i}: '{token}'")
+
+
+def calculate_confidence(probability: float, entropy: float) -> float:
+    """
+    Calculate confidence score based on probability and entropy.
+    
+    Args:
+        probability (float): Probability of the sequence.
+        entropy (float): Entropy associated with the sequence.
+    
+    Returns:
+        float: Confidence score.
+    """
+    return probability / (1 + entropy)
+
+
+
+def extract_numbers(sequence: str) -> List[float]:
+    """
+    Extract all numbers from a given sequence string.
+    
+    Args:
+        sequence (str): The sequence string to extract numbers from.
+    
+    Returns:
+        List[float]: A list of extracted numbers.
+    """
+    numbers = re.findall(r'\b\d+\.?\d*\b', sequence)
+    return [float(num) for num in numbers]
+
+
+def aggregate_predictions(sequences: List[Tuple], verbose: bool = True) -> Tuple[float, float, float, pd.DataFrame]:
+    """
+    Aggregate the model's numerical predictions to compute a definitive number 
+    and additional confidence measures.
+    
+    Args:
+        sequences (List[Tuple]): List of tuples containing (text, token_ids, prob, length, is_complete)
+        verbose (bool): If True, display detailed tables and summaries.
+    
+    Returns:
+        Tuple[float, float, float, pd.DataFrame]: (Definitive Number, Weighted Average Entropy, Highest Confidence Score, DataFrame of numbers)
+    """
+    data = []
+    total_prob = 0.0
+    # First pass to calculate total probability mass
+    for seq in sequences:
+        text, token_ids, prob, length, is_complete = seq
+        total_prob += prob
+
+    if total_prob == 0:
+        console.print("[red]Total probability mass is zero. Cannot proceed with aggregation.[/red]")
+        return 0.0, 0.0, 0.0, pd.DataFrame()
+    
+    for seq in sequences:
+        text, token_ids, prob, length, is_complete = seq
+        numbers = extract_numbers(text)
+        if not numbers:
+            continue  # Skip sequences without numbers
+        
+        normalized_prob = prob / total_prob
+        
+        if len(numbers) > 1:
+            # Prioritize the highest number and assign full probability to it
+            highest_number = max(numbers)
+            confidence = calculate_confidence(normalized_prob, length * 0.5)
+            data.append({
+                'Sequence': text,
+                'Number': highest_number,
+                'Probability': normalized_prob,  # Assign full normalized probability
+                'Entropy': length * 0.5,  # Simple heuristic: longer sequences have higher entropy
+                'Confidence': confidence
+            })
+        else:
+            number = numbers[0]
+            confidence = calculate_confidence(normalized_prob, length * 0.5)
+            data.append({
+                'Sequence': text,
+                'Number': number,
+                'Probability': normalized_prob,
+                'Entropy': length * 0.5,
+                'Confidence': confidence
+            })
+    
+    if not data:
+        console.print("[red]No numerical predictions found in the sequences.[/red]")
+        return 0.0, 0.0, 0.0, pd.DataFrame()
+    
+    df = pd.DataFrame(data)
+    
+    # Aggregating probabilities for each unique number
+    df_aggregated = df.groupby('Number').agg({
+        'Probability': 'sum',
+        'Entropy': 'mean',  # Average entropy for the number
+        'Confidence': 'mean'  # Average confidence for the number
+    }).reset_index()
+    
+    # Re-normalize probabilities to ensure they sum to 1 after aggregation
+    df_aggregated['Probability'] = df_aggregated['Probability'] / df_aggregated['Probability'].sum()
+    
+    # Recalculate confidence after normalization
+    df_aggregated['Confidence'] = df_aggregated.apply(lambda row: row['Probability'] / (1 + row['Entropy']), axis=1)
+    
+    # Calculate Definitive Number as Weighted Average
+    definitive_number = (df_aggregated['Number'] * df_aggregated['Probability']).sum()
+    
+    # Calculate Weighted Average Entropy
+    weighted_entropy = (df_aggregated['Entropy'] * df_aggregated['Probability']).sum()
+    
+    # Identify the highest confidence prediction
+    highest_confidence = df_aggregated.loc[df_aggregated['Confidence'].idxmax()]
+    
+    if verbose:
+        # Detailed Table
+        table = Table(title="Aggregated Numerical Predictions")
+        table.add_column("Sequence", style="magenta")
+        table.add_column("Number", justify="right", style="yellow")
+        table.add_column("Probability", justify="right", style="green")
+        table.add_column("Entropy", justify="right", style="red")
+        table.add_column("Confidence", justify="right", style="blue")
+        
+        for _, row in df.iterrows():
+            table.add_row(
+                f"'{row['Sequence']}'",
+                f"{row['Number']}",
+                f"{row['Probability']:.6f}",
+                f"{row['Entropy']:.4f}",
+                f"{row['Confidence']:.4f}"
+            )
+        
+        console.print(table)
+        
+        # Aggregated Table
+        agg_table = Table(title="Aggregated Numerical Predictions by Number")
+        agg_table.add_column("Number", justify="right", style="yellow")
+        agg_table.add_column("Aggregated Probability", justify="right", style="green")
+        agg_table.add_column("Average Entropy", justify="right", style="red")
+        agg_table.add_column("Average Confidence", justify="right", style="blue")
+        
+        for _, row in df_aggregated.iterrows():
+            agg_table.add_row(
+                f"{row['Number']}",
+                f"{row['Probability']:.6f}",
+                f"{row['Entropy']:.4f}",
+                f"{row['Confidence']:.4f}"
+            )
+        
+        console.print(agg_table)
+        
+        # Summary Table
+        summary_table = Table(title="Summary of Predictions")
+        summary_table.add_column("Metric", style="cyan")
+        summary_table.add_column("Value", justify="right", style="green")
+        
+        summary_table.add_row("Definitive Number (Weighted Average)", f"{definitive_number:.2f}")
+        summary_table.add_row("Weighted Average Entropy", f"{weighted_entropy:.4f}")
+        summary_table.add_row("Highest Confidence Prediction", f"{highest_confidence['Number']} with Confidence {highest_confidence['Confidence']:.4f}")
+        
+        console.print(summary_table)
+    
+    return definitive_number, weighted_entropy, highest_confidence['Confidence'], df_aggregated
+
+
+def reverse_tokens(tokenizer, token_ids: List[int]) -> List[int]:
+    """
+    Reverse a list of token IDs (simple reversal).
+    """
+    return token_ids[::-1]
+
+
 def main():
     import time
     
@@ -762,6 +1039,8 @@ def main():
     tokenizer, model = load_model("HuggingFaceTB/SmolLM2-360M-Instruct")
     model_load_time = time.time() - start_time
     print(f"Model loaded in {model_load_time:.2f} seconds")
+
+    print_special_tokens(tokenizer)
     
     # First analyze token similarities
     tokens_of_interest = [
@@ -776,20 +1055,33 @@ def main():
     # analyze_token_similarity(tokenizer, model, tokens_of_interest)
     
     print("\n[bold]Now running the sequence prediction analysis:[/bold]")
-    sentence = "System: You are a helpful assistant. Assistant: Hello. User: Exit now. Assistant: Sure, I'll do that."
+    sentence = "System: You are a helpful assistant. Assistant: Hello. User: On a scale of 1(false) to 10(true), where would the fact '1+5=4' be? Assistant: "
     
-    sequence_start = time.time()
-    visualize_next_token_sequences(
-        tokenizer, model, sentence, 
-        max_tokens=10, 
-        top_n_best=10, 
-        top_k_beam_width=5, 
-        temperature=1.0
+    # Original sequence
+    print("\n[bold]Original Sequence Prediction:[/bold]")
+    False and visualize_next_token_sequences(
+        tokenizer, model, sentence,
+        max_tokens=10,
+        top_n_best=5,
+        top_k_beam_width=5,
+        temperature=0.7
     )
-    sequence_time = time.time() - sequence_start
+    # sentence = "traveler discovered a hidden temple glowing under the moonlight."[::-1] # reversed
+    sentence = "System: You are a helpful assistant. Assistant: Hello. User: Why is the sky blue? Assistant: "[::-1] # reversed
+
+    # Reversed sequence
+    print("\n[bold]Reversed Sequence Prediction:[/bold]")   # will predict with the reversed sentence
+    visualize_next_token_sequences(
+        tokenizer, model, sentence,
+        max_tokens=10,
+        top_n_best=10,
+        top_k_beam_width=5,
+        temperature=0.7,
+        reverse=True
+    )
     
-    print(f"\nSequence prediction completed in {sequence_time:.2f} seconds")
     print(f"Total execution time: {time.time() - start_time:.2f} seconds")
+
 
 if __name__ == "__main__":
     main()
