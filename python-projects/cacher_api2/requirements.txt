@@ -1,9 +1,0 @@
-fastapi
-uvicorn[standard]
-torch
-transformers
-pydantic
-pytest
-pytest-benchmark
-python-multipart # For handling file uploads in tests
-httpx # For making HTTP requests in tests 

@@ -1,6 +1,6 @@
 import EventEmitter from 'events';
 import TypedEmitter from 'typed-emitter';
-import { LogConfig } from '../types';
+import { LogConfig } from '../types.js';
 
 type LogEvents = {
   debug: (message: string, ...args: any[]) => void;

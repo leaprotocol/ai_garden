@@ -5,12 +5,14 @@ from fastapi.responses import StreamingResponse
 from typing import Dict, Any, Optional, List, AsyncIterator
 from pydantic import BaseModel
 from ...core import StateManager
+from ...core.generation_utils import generate_text
+import json
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
 # Initialize state manager
-state_manager = StateManager()
+state_manager = StateManager(device="cpu")
 
 class TokenGenerationRequest(BaseModel):
     state_id: str
@@ -19,6 +21,7 @@ class TokenGenerationRequest(BaseModel):
     top_p: Optional[float] = 1.0
     stop_sequences: Optional[List[str]] = None
     stream: Optional[bool] = False
+    seed: Optional[int] = None
 
 class BeamGenerationRequest(BaseModel):
     state_id: str
@@ -27,76 +30,91 @@ class BeamGenerationRequest(BaseModel):
     diversity_penalty: Optional[float] = None
     early_stopping: Optional[bool] = True
 
-async def token_generator(request: TokenGenerationRequest) -> AsyncIterator[str]:
-    """Generator function for streaming tokens."""
-    try:
-        # Get the state to check if it exists
-        state = state_manager.get_state(request.state_id)
-        
-        # Mock token generation for demo
-        words = ["continued", "on", "their", "journey", "through", "the", "digital", "landscape", "exploring", "new"]
-        for i in range(min(request.max_tokens, len(words))):
-            # Simulate some processing time
-            await asyncio.sleep(0.2)
-            yield f"{words[i]} "
-    except Exception as e:
-        logger.error(f"Error in token generation: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
-
+    
 @router.post("/token")
 async def generate_token(request: TokenGenerationRequest):
-    """Generate next token(s) for a given state."""
+    """Generate tokens based on the given state."""
     try:
-        logger.info(f"Generating tokens for state {request.state_id}")
-        
-        # Verify state exists
+        logger.info(f"Generating tokens for state: {request.state_id}")
         state = state_manager.get_state(request.state_id)
+        logger.debug(f"Retrieved state from manager: {state}")
         
-        if request.stream:
-            return StreamingResponse(
-                token_generator(request),
-                media_type="text/plain"
+        if not state:
+            logger.error(f"State not found: {request.state_id}")
+            raise HTTPException(
+                status_code=400,
+                detail=f"State with ID {request.state_id} not found or expired"
+            )
+
+        # Verify required state components with detailed logging
+        required_keys = ["model", "tokenizer", "text", "input_ids", "attention_mask"]
+        missing_keys = [key for key in required_keys if key not in state]
+        if missing_keys:
+            logger.error(f"State {request.state_id} missing components: {missing_keys}")
+            logger.debug(f"Current state keys: {list(state.keys())}")
+            raise HTTPException(
+                status_code=422,
+                detail=f"State is missing required components: {missing_keys}"
             )
         
-        # For non-streaming, generate a single response
-        words = ["adventure", "discovery", "journey", "exploration"]
+        logger.debug(f"Generating with config: max_tokens={request.max_tokens}, temp={request.temperature}")
+        outputs = generate_text(
+            model=state["model"],
+            tokenizer=state["tokenizer"],
+            input_ids=state["input_ids"],
+            attention_mask=state["attention_mask"],
+            max_new_tokens=request.max_tokens,
+            temperature=request.temperature,
+            top_p=request.top_p,
+            seed=request.seed,
+            past_key_values=state.get("past_key_values"),
+            use_cache=True
+        )
+        
+        # Update and persist state with new outputs
+        updated_state = {
+            "input_ids": outputs["input_ids"],
+            "attention_mask": outputs["attention_mask"],
+            "past_key_values": outputs["past_key_values"],
+            "text": outputs["text"]
+        }
+        logger.debug(f"Updating state with new values: {list(updated_state.keys())}")
+        state_manager.update_state(request.state_id, updated_state)
+        
         return {
-            "tokens": words[:request.max_tokens],
+            "text": outputs["text"],
             "state_id": request.state_id
         }
-    except ValueError as e:
-        logger.error(f"State not found: {request.state_id}")
-        raise HTTPException(status_code=404, detail="State not found")
+        
+    except HTTPException:
+        raise
     except Exception as e:
-        logger.error(f"Error in token generation: {str(e)}")
+        logger.error(f"Error during token generation: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/beam")
 async def generate_beam(request: BeamGenerationRequest):
     """Generate text using beam search."""
-    try:
-        logger.info(f"Starting beam search for state {request.state_id}")
-        
-        # Verify state exists
-        state = state_manager.get_state(request.state_id)
-        
-        # Mock beam search results
-        continuations = [
-            ("continued their journey into the unknown", 0.95),
-            ("ventured forth into the digital realm", 0.85),
-            ("explored the vast landscape ahead", 0.75)
-        ]
-        
-        return {
-            "beams": [
-                {"text": text, "score": score}
-                for text, score in continuations[:request.num_beams]
-            ],
-            "state_id": request.state_id
-        }
-    except ValueError as e:
-        logger.error(f"State not found: {request.state_id}")
+    state = state_manager.get_state(request.state_id)
+    if not state:
         raise HTTPException(status_code=404, detail="State not found")
+
+    model = state["model"]
+    tokenizer = state["tokenizer"]
+    input_ids = state["input_ids"]
+    attention_mask = state["attention_mask"]
+
+    try:
+        generated_texts = model.beam_sample(
+            input_ids=input_ids,
+            attention_mask=attention_mask,
+            num_beams=request.num_beams,
+            max_length=request.max_length,
+            diversity_penalty=request.diversity_penalty,
+            early_stopping=request.early_stopping
+        )
+        decoded_texts = [tokenizer.decode(output, skip_special_tokens=True) for output in generated_texts]
+        return {"texts": decoded_texts}
     except Exception as e:
-        logger.error(f"Error in beam search: {str(e)}")
+        logger.error(f"Error during beam search generation: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e)) 

@@ -48,6 +48,10 @@ async def shutdown_event():
     # Cleanup resources here
     logger.info("Shutdown complete")
 
+@app.get("/test")
+async def test_endpoint():
+    return {"message": "Test endpoint works!"}
+
 if __name__ == "__main__":
     uvicorn.run(
         "main:app",

@@ -1,5 +1,6 @@
 import logging
 import random
+import numpy as np
 from fastapi import APIRouter, HTTPException, Depends
 from typing import Dict, Any, Optional, List
 from pydantic import BaseModel
@@ -65,69 +66,26 @@ async def analyze_tokens(state_id: str):
         logger.error(f"Error analyzing tokens: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.post("/attention/{state_id}")
-async def analyze_attention(state_id: str, request: AttentionRequest):
-    """Analyze attention patterns for a state."""
+@router.post("/attention")
+async def analyze_attention(request: AttentionRequest):
+    """Analyze attention patterns for a specific state and layer."""
     try:
-        logger.info(f"Analyzing attention patterns for state {state_id}")
-        
-        # Verify state exists
-        state = state_manager.get_state(state_id)
-        
-        # Generate mock attention patterns
-        layer = request.layer or 0
-        head = request.head or 0
-        
-        return {
-            "attention_patterns": [
-                {
-                    "layer": layer,
-                    "head": head,
-                    "patterns": generate_mock_attention_pattern(
-                        size=5,
-                        threshold=request.threshold
-                    )
-                }
-            ],
-            "state_id": state_id
-        }
-    except ValueError as e:
-        logger.error(f"State not found: {state_id}")
-        raise HTTPException(status_code=404, detail="State not found")
+        logger.info(f"Analyzing attention for state {request.state_id}, layer {request.layer}, head {request.head}")
+        # Mock attention analysis
+        pattern = generate_mock_attention_pattern(threshold=request.threshold)
+        return {"attention_pattern": pattern, "state_id": request.state_id, "layer": request.layer}
     except Exception as e:
         logger.error(f"Error analyzing attention: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.post("/cache/{state_id}")
-async def inspect_cache(state_id: str, request: CacheInspectRequest):
-    """Inspect key/value cache for a state."""
+@router.post("/cache/inspect")
+async def inspect_cache(request: CacheInspectRequest):
+    """Inspect the attention cache for a given state and layer."""
     try:
-        logger.info(f"Inspecting cache for state {state_id}")
-        
-        # Verify state exists
-        state = state_manager.get_state(state_id)
-        
-        # Mock cache data
-        layer_range = request.layer_range or [0, 1]
-        layers_data = []
-        
-        for layer in range(layer_range[0], layer_range[1] + 1):
-            layers_data.append({
-                "layer": layer,
-                "keys": generate_mock_attention_pattern(3),
-                "values": generate_mock_attention_pattern(3)
-            })
-        
-        return {
-            "cache_data": {
-                "key_name": request.key_name or "all",
-                "layers": layers_data
-            },
-            "state_id": state_id
-        }
-    except ValueError as e:
-        logger.error(f"State not found: {state_id}")
-        raise HTTPException(status_code=404, detail="State not found")
+        logger.info(f"Inspecting cache for state {request.state_id}, key {request.key_name}, layers {request.layer_range}")
+        # Mock cache inspection data
+        cache_data = {"state_id": request.state_id, "key_name": request.key_name, "layer_range": request.layer_range, "data": {"mocked": True}}
+        return cache_data
     except Exception as e:
         logger.error(f"Error inspecting cache: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e)) 
