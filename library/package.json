@@ -1,0 +1,30 @@
+{
+  "name": "ollama-client-library",
+  "version": "0.1.0",
+  "description": "A reusable library for interacting with Ollama APIs in Node.js projects.",
+  "type": "module",
+  "main": "./ollama/ollama_client.js",
+  "exports": {
+    "./ollama_client": "./ollama/ollama_client.js"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",  
+    "start": "node examples/generate_text.js",
+    "stream": "node examples/stream_text.js",
+    "token-event": "node examples/token_event.js",
+    "token-event2": "node examples/token_event2.js",
+    "multi-conversation": "node examples/multi_conversation.js",
+    "linux-tools": "node examples/linux_tools.js"
+  },
+  "keywords": [
+    "ollama",
+    "llm",
+    "api",
+    "client"
+  ],
+  "author": "Your Name",
+  "license": "ISC",
+  "dependencies": {
+    "ollama": "^0.5.8"
+  }
+} 

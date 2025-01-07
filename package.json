@@ -18,11 +18,15 @@
     "build": "npm run build -w llm-graph4",
     "graph7:dev": "npm run dev -w llm-graph7",
     "graph7:server": "npm run server -w llm-graph7",
-    "ollama-demo": "nodemon --watch ollama-demo -e js,html,css --exec 'node ollama-demo/server/server.js'"
+    "ollama-demo": "nodemon --watch ollama-demo -e js,html,css --exec 'node ollama-demo/server/server.js'",
+    "cacher:build": "npm run build -w cacher-api",
+    "cacher:test": "npm run test -w cacher-api",
+    "cacher:demo": "npm run demo -w cacher-api"
   },
   "workspaces": [
     "llm-graph7",
-    "friendly_input_field"
+    "friendly_input_field",
+    "cacher-api"
   ],
   "author": "",
   "license": "ISC",
@@ -57,6 +61,7 @@
     "jsdom": "^24.0.0",
     "mocha": "^11.0.1",
     "nodemon": "^3.1.0",
+    "tsx": "^4.19.2",
     "vite": "^5.1.4"
   }
 }

@@ -1,0 +1,28 @@
+[tool.poetry]
+name = "ai-garden-python"
+version = "0.1.0"
+description = "Python projects for ai_garden"
+authors = ["Your Name <your.email@example.com>"]
+license = "MIT"
+packages = [
+    { include = "cacher_api2" }
+]
+
+[tool.poetry.dependencies]
+python = "^3.9"
+fastapi = "^0.95.0"
+uvicorn = {extras = ["standard"], version = "^0.21.1"}
+torch = { version = "^2.0.0", extras = ["cpu"] }
+transformers = "^4.28.0"
+pydantic = "^1.10.7"
+pytest = "^7.2.2"
+pytest-benchmark = "^4.0.0"
+python-multipart = "^0.0.6"
+httpx = "^0.23.3"
+
+[tool.poetry.extras]
+cuda118 = ["torch-cuda", "pytorch-cuda"]
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api" 

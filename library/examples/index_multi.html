@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Multiple Conversations</title>
+    <style>
+        body { font-family: sans-serif; margin: 20px; }
+        h1 { margin-bottom: 20px; }
+        .conversation { margin-bottom: 20px; padding: 10px; border: 1px solid #ccc; border-radius: 5px; }
+        .message { margin-bottom: 10px; padding: 10px; border: 1px solid #ccc; border-radius: 5px; background-color: #f9f9f9; }
+        .generating { font-style: italic; color: grey; }
+        .complete { font-weight: bold; }
+        .error { color: red; background-color: #ffe0e0; }
+        .tool-result { color: blue; background-color: #e0f0ff; }
+        .tool-error { color: red; background-color: #ffe0e0; }
+    </style>
+</head>
+<body>
+    <h1>Multiple Conversations</h1>
+    <div id="conversations"></div>
+
+    <script>
+        const conversationsDiv = document.getElementById('conversations');
+        const ws = new WebSocket('ws://localhost:8080');
+
+        ws.onopen = () => {
+            console.log('WebSocket connection opened.');
+        };
+
+        let activeConversations = {};
+
+        ws.onmessage = (event) => {
+            console.log('Received raw message:', event.data);
+            try {
+                const message = JSON.parse(event.data);
+                console.log('Parsed message:', message);
+
+                if (message.status === 'starting') {
+                    activeConversations[message.conversationId] = {
+                        status: 'generating',
+                        div: null,
+                        messageDiv: null
+                    };
+
+                    const conversationDiv = document.createElement('div');
+                    conversationDiv.id = `conversation-${message.conversationId}`;
+                    conversationDiv.className = 'conversation';
+                    conversationsDiv.appendChild(conversationDiv);
+
+                    const title = document.createElement('h2');
+                    title.textContent = `Conversation ${message.conversationId}`;
+                    conversationDiv.appendChild(title);
+
+                    const statusDiv = document.createElement('div');
+                    statusDiv.id = `status-${message.conversationId}`;
+                    statusDiv.className = 'message generating';
+                    statusDiv.textContent = 'Status: Generating...';
+                    conversationDiv.appendChild(statusDiv);
+
+                    const messageDiv = document.createElement('div');
+                    messageDiv.id = `message-${message.conversationId}`;
+                    messageDiv.className = 'message-text';
+                    conversationDiv.appendChild(messageDiv);
+
+                    activeConversations[message.conversationId].div = conversationDiv;
+                    activeConversations[message.conversationId].messageDiv = messageDiv;
+                } else if (message.status === 'generating') {
+                    if (activeConversations[message.conversationId]) {
+                        const statusDiv = document.getElementById(`status-${message.conversationId}`);
+                        statusDiv.textContent = `Status: Generating...`;
+
+                        const messageDiv = document.getElementById(`message-${message.conversationId}`);
+                        messageDiv.textContent = message.fullMessage;
+                    }
+                } else if (message.status === 'complete') {
+                    if (activeConversations[message.conversationId]) {
+                        const statusDiv = document.getElementById(`status-${message.conversationId}`);
+                        statusDiv.textContent = 'Status: Complete';
+                        statusDiv.classList.remove('generating');
+                        statusDiv.classList.add('complete');
+                        delete activeConversations[message.conversationId];
+                    }
+                } else if (message.status === 'error') {
+                    if (activeConversations[message.conversationId]) {
+                        const statusDiv = document.getElementById(`status-${message.conversationId}`);
+                        statusDiv.textContent = `Error: ${message.error}`;
+                        statusDiv.classList.remove('generating');
+                        statusDiv.classList.add('error');
+                        delete activeConversations[message.conversationId];
+                    }
+                } else if (message.status === 'tool_result') {
+                    if (activeConversations[message.conversationId]) {
+                        const conversationDiv = activeConversations[message.conversationId].div;
+                        const toolResultDiv = document.createElement('div');
+                        toolResultDiv.className = 'message tool-result';
+                        toolResultDiv.textContent = `Tool Result (${message.command}): ${message.result}`;
+                        conversationDiv.appendChild(toolResultDiv);
+                    }
+                } else if (message.status === 'tool_error') {
+                    if (activeConversations[message.conversationId]) {
+                        const conversationDiv = activeConversations[message.conversationId].div;
+                        const toolErrorDiv = document.createElement('div');
+                        toolErrorDiv.className = 'message tool-error';
+                        toolErrorDiv.textContent = `Tool Error (${message.command}): ${message.error}`;
+                        conversationDiv.appendChild(toolErrorDiv);
+                    }
+                }
+            } catch (error) {
+                console.error('Error parsing message:', error);
+            }
+        };
+
+        ws.onclose = () => {
+            console.log('WebSocket connection closed.');
+        };
+
+        ws.onerror = (error) => {
+            console.error('WebSocket error:', error);
+        };
+    </script>
+</body>
+</html> 

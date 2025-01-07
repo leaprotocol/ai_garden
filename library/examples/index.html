@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Philosopher Debate</title>
+    <style>
+        body { font-family: sans-serif; margin: 20px; }
+        h1 { margin-bottom: 20px; }
+        .message { margin-bottom: 10px; padding: 10px; border: 1px solid #ccc; border-radius: 5px; background-color: #f9f9f9; }
+        .generating { font-style: italic; color: grey; }
+        .complete { font-weight: bold; }
+        .error { color: red; background-color: #ffe0e0; }
+    </style>
+</head>
+<body>
+    <h1>Philosopher Debate</h1>
+    <div id="conversation"></div>
+
+    <script>
+        const conversationDiv = document.getElementById('conversation');
+        const ws = new WebSocket('ws://localhost:8080');
+
+        ws.onopen = () => {
+            console.log('WebSocket connection opened.');
+        };
+
+        // Track responses per speaker
+        let currentResponses = {};
+
+        ws.onmessage = (event) => {
+            console.log('Received raw message:', event.data);
+            try {
+                const message = JSON.parse(event.data);
+                console.log('Parsed message:', message);
+
+                if (message.status === 'generating') {
+                    // Only create new response box if this speaker doesn't have an active response
+                    if (!currentResponses[message.speaker] || !document.getElementById(currentResponses[message.speaker])) {
+                        const responseId = `${message.speaker}-${Date.now()}`;
+                        currentResponses[message.speaker] = responseId;
+                        
+                        const speakerDiv = document.createElement('div');
+                        speakerDiv.id = responseId;
+                        speakerDiv.className = 'message generating';
+                        conversationDiv.appendChild(speakerDiv);
+                        
+                        const speakerName = document.createElement('strong');
+                        speakerName.textContent = message.speaker + ': ';
+                        speakerDiv.appendChild(speakerName);
+                        
+                        const messageSpan = document.createElement('span');
+                        messageSpan.id = `${responseId}-text`;
+                        speakerDiv.appendChild(messageSpan);
+                    }
+                    
+                    // Append token to current response for this speaker
+                    const messageSpan = document.getElementById(`${currentResponses[message.speaker]}-text`);
+                    if (message.token) {
+                        messageSpan.textContent += message.token;
+                    }
+                } else if (message.status === 'complete') {
+                    const responseId = currentResponses[message.speaker];
+                    if (responseId) {
+                        const speakerDiv = document.getElementById(responseId);
+                        if (speakerDiv) {
+                            speakerDiv.classList.remove('generating');
+                            speakerDiv.classList.add('complete');
+                        }
+                        // Clear only this speaker's current response
+                        delete currentResponses[message.speaker];
+                    }
+                } else if (message.status === 'error') {
+                    console.log('Handling "error" status:', message);
+                    const errorDiv = document.createElement('div');
+                    errorDiv.className = 'message error';
+                    errorDiv.textContent = `Error: ${message.error}`;
+                    conversationDiv.appendChild(errorDiv);
+                    console.log('Appended errorDiv:', errorDiv);
+                } else if (message.status === 'dialogueComplete') {
+                    console.log('Handling "dialogueComplete" status:', message);
+                    const completeDiv = document.createElement('div');
+                    completeDiv.textContent = '-- Dialogue Complete --';
+                    conversationDiv.appendChild(completeDiv);
+                    console.log('Appended dialogueComplete div:', completeDiv);
+                }
+            } catch (error) {
+                console.error('Error parsing message:', error);
+            }
+        };
+
+        ws.onclose = () => {
+            console.log('WebSocket connection closed.');
+        };
+
+        ws.onerror = (error) => {
+            console.error('WebSocket error:', error);
+        };
+    </script>
+</body>
+</html>
