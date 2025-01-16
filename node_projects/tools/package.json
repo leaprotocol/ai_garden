@@ -1,0 +1,38 @@
+{
+  "name": "@ai_garden/tools",
+  "version": "1.0.0",
+  "description": "Tools for the AI Garden project",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "test": "jest",
+    "start": "ts-node src/index.ts"
+  },
+  "keywords": [
+    "ai",
+    "tools",
+    "playwright",
+    "docker",
+    "llm"
+  ],
+  "author": "Your Name",
+  "license": "MIT",
+  "dependencies": {
+    "chalk": "^5.3.0",
+    "dockerode": "^4.0.2",
+    "playwright": "^1.42.1"
+  },
+  "devDependencies": {
+    "@types/dockerode": "^3.3.27",
+    "@types/jest": "^29.5.12",
+    "@types/node": "^20.11.24",
+    "jest": "^29.7.0",
+    "ts-jest": "^29.1.2",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.4.2"
+  }
+}
