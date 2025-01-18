@@ -1,7 +1,7 @@
 [tool.poetry]
-name = "ai-garden"
+name = "cacher-api3"  # Changed the name to match the folder
 version = "1.0.0"
-description = "Collection of AI/ML projects"
+description = "Cacher API v3 project"
 authors = ["Your Name <your.email@example.com>"]
 package-mode = false
 
@@ -22,22 +22,24 @@ rich = "^13.7.0"
 httpx = "^0.26.0"
 colorama = "^0.4.6"
 termcolor = "^2.4.0"
+datasets = "^2.17.1" # Added datasets
+bitsandbytes = "^0.45.0"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^7.4.0"
 pytest-benchmark = "^4.0.0"
 python-multipart = "^0.0.6"
 
-[tool.poetry.group.cacher.dependencies]
-# Dependencies specific to cacher projects
-transformers = "^4.36.0"
-torch = "^2.2.0"
-
 [tool.poetry.group.llm-graph.dependencies]
-# Dependencies specific to llm-graph projects
 networkx = "^3.2.0"
 graphviz = "^0.20.0"
 
 [build-system]
 requires = ["poetry-core"]
-build-backend = "poetry.core.masonry.api" 
+build-backend = "poetry.core.masonry.api"
+
+[tool.poetry.scripts]
+start-server = "uvicorn cacher_api3.main:app --reload"
+
+[virtualenvs]
+in-project = true

@@ -1,0 +1,482 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dataset Demo</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .token-analysis {
+            font-size: 0.9em;
+            width: 100%;
+        }
+        .token-analysis th, .token-analysis td {
+            text-align: left;
+            padding: 8px;
+            border: 1px solid #ddd;
+        }
+        .token-analysis tr:nth-child(even) {
+            background-color: #f5f5f5;
+        }
+        .token-analysis th {
+            background-color: #f0f0f0;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 p-8">
+    <div class="max-w-4xl mx-auto">
+        <h1 class="text-3xl font-bold mb-8">Language Model Demo</h1>
+        
+        <div class="bg-white p-6 rounded-lg shadow-md mb-8">
+            <h2 class="text-xl font-semibold mb-4">Model Configuration</h2>
+            <input type="text" id="modelName" value="meta-llama/Llama-3.2-1B" 
+                   class="w-full p-2 border rounded mb-4">
+            
+            <div class="grid grid-cols-2 gap-4 mb-4">
+                <div>
+                    <label class="block text-sm font-medium mb-1">Temperature</label>
+                    <input type="number" id="temperature" value="0.7" step="0.1" min="0.1" max="2.0"
+                           class="w-full p-2 border rounded">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium mb-1">Number of Beams</label>
+                    <input type="number" id="numBeams" value="5" min="1" max="10"
+                           class="w-full p-2 border rounded">
+                </div>
+            </div>
+        </div>
+
+        <div class="bg-white p-6 rounded-lg shadow-md mb-8">
+            <h2 class="text-xl font-semibold mb-4">Input Text</h2>
+            <textarea id="inputText" rows="4" 
+                      class="w-full p-2 border rounded mb-4"
+                      placeholder="Enter your text here..."></textarea>
+            
+            <div class="flex gap-4">
+                <button onclick="performForward()" 
+                        class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">
+                    Forward Pass
+                </button>
+                <button onclick="performBeamSearch()"
+                        class="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600">
+                    Beam Search
+                </button>
+                <button onclick="analyzeSequence()" class="bg-blue-500 text-white px-4 py-2 rounded">
+                    Analyze Sequence
+                </button>
+                <button onclick="analyzeExistingSequence()" class="bg-blue-500 text-white px-4 py-2 rounded">
+                    Analyze Existing Sequence
+                </button>
+            </div>
+        </div>
+
+        <div class="bg-white p-6 rounded-lg shadow-md">
+            <h2 class="text-xl font-semibold mb-4">Results</h2>
+            <pre id="results" class="bg-gray-100 p-4 rounded overflow-x-auto"></pre>
+        </div>
+    </div>
+
+    <script>
+        async function performForward() {
+            const results = document.getElementById('results');
+            results.textContent = 'Processing...';
+            
+            try {
+                const response = await fetch('/api/forward', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        model_name: document.getElementById('modelName').value,
+                        text: document.getElementById('inputText').value,
+                        temperature: parseFloat(document.getElementById('temperature').value)
+                    })
+                });
+                
+                const data = await response.json();
+                results.textContent = JSON.stringify(data, null, 2);
+            } catch (error) {
+                results.textContent = `Error: ${error.message}`;
+            }
+        }
+
+        class BeamHypothesis {
+            constructor(input_ids, score = 0.0) {
+                this.input_ids = input_ids;
+                this.score = score;
+                this.finished = false;
+            }
+        }
+
+        async function tokenizeInput() {
+            const modelName = document.getElementById('modelName').value;
+            const inputText = document.getElementById('inputText').value;
+            
+            try {
+                const response = await fetch('/api/tokenize', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        model_name: modelName,
+                        text: inputText
+                    })
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`Tokenization failed: ${response.statusText}`);
+                }
+                
+                return await response.json();
+            } catch (error) {
+                console.error('Tokenization error:', error);
+                throw error;
+            }
+        }
+
+        async function getNextTokens(input_ids, temperature) {
+            const modelName = document.getElementById('modelName').value;
+            
+            try {
+                const response = await fetch('/api/next_token', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        model_name: modelName,
+                        input_ids: input_ids,
+                        temperature: temperature
+                    })
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`Next token prediction failed: ${response.statusText}`);
+                }
+                
+                return await response.json();
+            } catch (error) {
+                console.error('Next token prediction error:', error);
+                throw error;
+            }
+        }
+
+        function createTokenAnalysisTable() {
+            const table = document.createElement('table');
+            table.className = 'token-analysis w-full border-collapse mb-4';
+            table.innerHTML = `
+                <thead class="bg-gray-100">
+                    <tr>
+                        <th class="border p-2">Step</th>
+                        <th class="border p-2">Beam</th>
+                        <th class="border p-2">Token</th>
+                        <th class="border p-2">Token ID</th>
+                        <th class="border p-2">Probability</th>
+                        <th class="border p-2">Score (cumulative)</th>
+                        <th class="border p-2">Full Text</th>
+                    </tr>
+                </thead>
+                <tbody id="tokenAnalysisBody">
+                </tbody>
+            `;
+            return table;
+        }
+
+        function updateTokenAnalysis(step, beams, tokenized) {
+            const tbody = document.getElementById('tokenAnalysisBody');
+            tbody.innerHTML = ''; // Clear existing rows
+            
+            beams.forEach((beam, beamIdx) => {
+                const row = document.createElement('tr');
+                row.className = beamIdx % 2 === 0 ? 'bg-white' : 'bg-gray-50';
+                
+                // Calculate entropy for the last token if it exists
+                const lastTokenProb = Math.exp(-beam.score);
+                const entropy = -Math.log2(lastTokenProb);
+                
+                row.innerHTML = `
+                    <td class="border p-2">${step}</td>
+                    <td class="border p-2">#${beamIdx + 1}</td>
+                    <td class="border p-2 font-mono">${beam.input_ids.length > tokenized.input_ids.length ? 
+                        beam.lastToken : '(start)'}</td>
+                    <td class="border p-2 font-mono">${beam.input_ids[beam.input_ids.length - 1] || '-'}</td>
+                    <td class="border p-2">${lastTokenProb.toFixed(4)}</td>
+                    <td class="border p-2">${beam.score.toFixed(4)} (entropy: ${entropy.toFixed(2)} bits)</td>
+                    <td class="border p-2 font-mono text-xs">${beam.text || '(generating...)'}</td>
+                `;
+                tbody.appendChild(row);
+            });
+        }
+
+        async function performBeamSearch() {
+            const results = document.getElementById('results');
+            results.innerHTML = ''; // Clear previous results
+            
+            // Create and add token analysis table
+            const analysisTable = createTokenAnalysisTable();
+            results.appendChild(analysisTable);
+            
+            // Create JSON results div
+            const jsonResults = document.createElement('pre');
+            jsonResults.className = 'mt-4 p-4 bg-gray-100 rounded overflow-auto';
+            results.appendChild(jsonResults);
+            
+            try {
+                const tokenized = await tokenizeInput();
+                console.log('Tokenized input:', tokenized);
+                
+                let beams = [new BeamHypothesis(tokenized.input_ids)];
+                let finishedBeams = [];
+                
+                const temperature = parseFloat(document.getElementById('temperature').value);
+                const numBeams = parseInt(document.getElementById('numBeams').value);
+                const maxLength = 10;
+                
+                // Initial state
+                updateTokenAnalysis(0, beams, tokenized);
+                
+                for (let step = 0; step < maxLength; step++) {
+                    if (finishedBeams.length >= numBeams) break;
+                    
+                    let candidates = [];
+                    
+                    for (const beam of beams) {
+                        if (beam.finished) continue;
+                        
+                        const nextTokens = await getNextTokens(beam.input_ids, temperature);
+                        console.log('Next tokens:', nextTokens);
+                        
+                        for (const pred of nextTokens.predictions) {
+                            const newInputIds = [...beam.input_ids, pred.token_id];
+                            const newScore = beam.score - Math.log(pred.probability);
+                            
+                            // Create new beam with additional token info
+                            const newBeam = new BeamHypothesis(newInputIds, newScore);
+                            newBeam.lastToken = pred.token;
+                            newBeam.lastProb = pred.probability;
+                            
+                            // Get full text for this beam
+                            const decodedResponse = await fetch('/api/tokenize', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({
+                                    model_name: document.getElementById('modelName').value,
+                                    input_ids: newInputIds
+                                })
+                            });
+                            const decoded = await decodedResponse.json();
+                            newBeam.text = decoded.text;
+                            
+                            if (pred.token_id === 50256) { // GPT2 EOS token
+                                finishedBeams.push(newBeam);
+                            } else {
+                                candidates.push(newBeam);
+                            }
+                        }
+                    }
+                    
+                    candidates.sort((a, b) => a.score - b.score);
+                    beams = candidates.slice(0, numBeams - finishedBeams.length);
+                    
+                    // Update analysis table
+                    updateTokenAnalysis(step + 1, [...beams, ...finishedBeams], tokenized);
+                    
+                    // Update JSON view
+                    jsonResults.textContent = JSON.stringify({
+                        step: step + 1,
+                        active_beams: beams.length,
+                        finished_beams: finishedBeams.length,
+                        beams: [...beams, ...finishedBeams].map(b => ({
+                            text: b.text,
+                            score: b.score,
+                            finished: b.finished
+                        }))
+                    }, null, 2);
+                }
+                
+                finishedBeams.push(...beams);
+                finishedBeams.sort((a, b) => a.score - b.score);
+                
+                // Final update
+                updateTokenAnalysis(maxLength, finishedBeams, tokenized);
+                jsonResults.textContent = JSON.stringify({ beams: finishedBeams }, null, 2);
+                
+            } catch (error) {
+                results.textContent = `Error: ${error.message}`;
+                console.error('Beam search error:', error);
+            }
+        }
+
+        function createSequenceAnalysisTable() {
+            const table = document.createElement('table');
+            table.className = 'sequence-analysis w-full border-collapse mb-4';
+            table.innerHTML = `
+                <thead class="bg-gray-100">
+                    <tr>
+                        <th class="border p-2">Position</th>
+                        <th class="border p-2">Token</th>
+                        <th class="border p-2">Probability</th>
+                        <th class="border p-2">Entropy</th>
+                        <th class="border p-2">Top Alternatives</th>
+                        <th class="border p-2">Context</th>
+                        <th class="border p-2">Split Suggestion</th>
+                    </tr>
+                </thead>
+                <tbody id="sequenceAnalysisBody">
+                </tbody>
+            `;
+            return table;
+        }
+
+        async function analyzeSequence() {
+            const results = document.getElementById('results');
+            results.innerHTML = '';
+            
+            const analysisTable = createSequenceAnalysisTable();
+            results.appendChild(analysisTable);
+            
+            try {
+                const modelName = document.getElementById('modelName').value;
+                const inputText = document.getElementById('inputText').value;
+                const temperature = parseFloat(document.getElementById('temperature').value);
+                
+                // First tokenize the input
+                const tokenized = await tokenizeInput();
+                let currentIds = tokenized.input_ids;
+                const tbody = document.getElementById('sequenceAnalysisBody');
+                
+                // Process tokens one by one
+                for (let step = 0; step < 100; step++) {
+                    const nextTokens = await getNextTokens(currentIds, temperature);
+                    console.log('Next tokens:', nextTokens);
+                    
+                    const row = document.createElement('tr');
+                    const pred = nextTokens.predictions[0];  // Best prediction
+                    
+                    // Calculate entropy from all predictions
+                    const totalProb = nextTokens.predictions.reduce((sum, p) => sum + p.probability, 0);
+                    const entropy = -nextTokens.predictions.reduce((sum, p) => {
+                        const normalizedProb = p.probability / totalProb;
+                        return sum + normalizedProb * Math.log2(normalizedProb);
+                    }, 0);
+                    
+                    // Determine if this might be a good split point
+                    const isGoodSplit = entropy > 2.0 && pred.probability < 0.3;
+                    
+                    row.innerHTML = `
+                        <td class="border p-2">${currentIds.length}</td>
+                        <td class="border p-2 font-mono">${pred.token}</td>
+                        <td class="border p-2">${pred.probability.toFixed(4)}</td>
+                        <td class="border p-2">${entropy.toFixed(2)}</td>
+                        <td class="border p-2 text-xs">
+                            ${nextTokens.predictions.slice(1, 5).map(p => 
+                                `${p.token} (${p.probability.toFixed(3)})`
+                            ).join(', ')}
+                        </td>
+                        <td class="border p-2 font-mono text-xs">
+                            ${await getContextText(currentIds)}
+                        </td>
+                        <td class="border p-2 text-red-500">
+                            ${isGoodSplit ? "✂️ Consider splitting here" : ""}
+                        </td>
+                    `;
+                    
+                    if (isGoodSplit) {
+                        row.className = 'bg-yellow-50';
+                    }
+                    
+                    tbody.appendChild(row);
+                    tbody.parentElement.scrollTop = tbody.parentElement.scrollHeight;
+                    
+                    // Update current sequence
+                    currentIds = [...currentIds, pred.token_id];
+                    
+                    // Check if we hit EOS token
+                    if (pred.token_id === 50256) { // GPT2 EOS token
+                        break;
+                    }
+                    
+                    // Small delay for visualization
+                    await new Promise(resolve => setTimeout(resolve, 100));
+                }
+                
+            } catch (error) {
+                results.textContent = `Error: ${error.message}`;
+                console.error('Sequence analysis error:', error);
+            }
+        }
+
+        async function getContextText(input_ids) {
+            try {
+                const response = await fetch('/api/tokenize', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        model_name: document.getElementById('modelName').value,
+                        input_ids: input_ids.slice(-10)  // Last 10 tokens for context
+                    })
+                });
+                const data = await response.json();
+                return data.text;
+            } catch (error) {
+                console.error('Context fetch error:', error);
+                return '...';
+            }
+        }
+
+        async function analyzeExistingSequence() {
+            const results = document.getElementById('results');
+            results.innerHTML = '';
+            
+            const analysisTable = createSequenceAnalysisTable();
+            results.appendChild(analysisTable);
+            
+            try {
+                const response = await fetch('/api/analyze_sequence', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        model_name: document.getElementById('modelName').value,
+                        text: document.getElementById('inputText').value,
+                        temperature: parseFloat(document.getElementById('temperature').value)
+                    })
+                });
+                
+                const data = await response.json();
+                const tbody = document.getElementById('sequenceAnalysisBody');
+                
+                data.sequence_stats.forEach((stat, idx) => {
+                    const row = document.createElement('tr');
+                    
+                    // Determine if this might be a good split point
+                    const isGoodSplit = stat.entropy > 2.0 && stat.probability < 0.3;
+                    
+                    row.innerHTML = `
+                        <td class="border p-2">${stat.position}</td>
+                        <td class="border p-2 font-mono">${stat.token}</td>
+                        <td class="border p-2">${stat.probability.toFixed(4)}</td>
+                        <td class="border p-2">${stat.entropy.toFixed(2)}</td>
+                        <td class="border p-2 text-xs">
+                            ${stat.top_predictions
+                                .filter(p => !p.is_actual)
+                                .map(p => `${p.token} (${p.probability.toFixed(3)})`)
+                                .join(', ')}
+                        </td>
+                        <td class="border p-2 font-mono text-xs">${stat.context}</td>
+                        <td class="border p-2 text-red-500">${isGoodSplit ? "✂️ Consider splitting here" : ""}</td>
+                    `;
+                    
+                    if (isGoodSplit) {
+                        row.className = 'bg-yellow-50';
+                    }
+                    
+                    tbody.appendChild(row);
+                });
+                
+            } catch (error) {
+                results.textContent = `Error: ${error.message}`;
+                console.error('Sequence analysis error:', error);
+            }
+        }
+    </script>
+</body>
+</html>
