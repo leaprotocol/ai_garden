@@ -1,48 +1,39 @@
 [tool.poetry]
-name = "cacher-api3"  # Changed the name to match the folder
-version = "1.0.0"
-description = "Cacher API v3 project"
-authors = ["Your Name <your.email@example.com>"]
+name = "ai-garden"
+version = "0.1.0"
+description = "AI experiments and projects"
+authors = ["Your Name <you@example.com>"]
 package-mode = false
 
 [tool.poetry.dependencies]
-python = "^3.12"
-fastapi = "^0.109.0"
-uvicorn = {extras = ["standard"], version = "^0.25.0"}
-torch = "^2.2.0"
+python = "^3.9"
+torch = "^2.1.0"
 transformers = "^4.36.0"
-pydantic = "^2.5.0"
-pydantic-settings = "^2.1.0"
-numpy = "^1.26.0"
-matplotlib = "^3.8.0"
-seaborn = "^0.13.0"
-pandas = "^2.2.0"
-scikit-learn = "^1.4.0"
-rich = "^13.7.0"
-httpx = "^0.26.0"
-colorama = "^0.4.6"
-termcolor = "^2.4.0"
-datasets = "^2.17.1" # Added datasets
-bitsandbytes = "^0.45.0"
-vastai = "^0.2.8"
-tabulate = "^0.9.0"
-accelerate = "^1.3.0"
+datasets = "^2.15.0"
+tokenizers = "^0.21.0"
+numpy = "^1.24.0"
+pillow = "^11.1.0"
+rich = "^13.9.4"
+python-dotenv = "^1.0.1"
+einops = "^0.8.0"
+torchvision = "^0.20.1"
+pyvips = "^2.2.3"
+psutil = "^6.1.1"
 
-[tool.poetry.group.dev.dependencies]
-pytest = "^7.4.0"
-pytest-benchmark = "^4.0.0"
-python-multipart = "^0.0.6"
-
-[tool.poetry.group.llm-graph.dependencies]
-networkx = "^3.2.0"
-graphviz = "^0.20.0"
+[tool.poetry.group.test.dependencies]
+pytest = "^7.4.3"
+pytest-asyncio = "^0.21.1"
+pytest-cov = "^4.1.0"
+pytest-xdist = "^3.3.1"
+hypothesis = "^6.82.6"
+coverage = "^7.3.2"
 
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
 
-[tool.poetry.scripts]
-start-server = "uvicorn cacher_api3.main:app --reload"
-
-[virtualenvs]
-in-project = true
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["training/tests"]
+python_files = ["test_*.py"]
+addopts = "-v --cov=training --cov-report=html"

@@ -1,58 +1,54 @@
-from datasets import load_dataset
-from transformers import (
-    AutoTokenizer, 
-    AutoModelForCausalLM, 
-    TrainingArguments, 
-    Trainer, 
-    GPT2Config,
-    PreTrainedTokenizerFast
-)
-from tokenizers import Tokenizer, models, trainers, pre_tokenizers, processors
-import torch
-import logging
 import asyncio
+import logging
 import signal
 import json
 import os
 import time
 from pathlib import Path
-from functools import partial
+
+import torch
+from datasets import load_dataset
+from tokenizers import Tokenizer, models, pre_tokenizers, trainers
+from transformers import AutoModelForCausalLM, AutoTokenizer, TrainingArguments, Trainer, PreTrainedTokenizerFast
 
 # Constants
-FORCE_RETRAIN = True    # Set to True to ignore existing tokenizer/model and retrain
-TOKENIZER_SAMPLES = 500000  # Number of examples to use for tokenizer training
-TRAINING_SAMPLES = 2000    # Number of examples to use for model training
-VOCAB_SIZE = 8192         # Size of the tokenizer vocabulary
+FORCE_RETRAIN = True  # Set to True to ignore existing tokenizer/model and retrain
+TOKENIZER_SAMPLES = 50000  # Number of examples to use for tokenizer training
+TRAINING_SAMPLES = 2000  # Number of examples to use for model training
+VOCAB_SIZE = 8192  # Size of the tokenizer vocabulary
+MODEL_OUTPUT_DIR = "tiny_gpt"  # Directory to save the trained model and tokenizer
 
-# Set up logging
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(message)s",
-    datefmt="[%X]",
-    handlers=[logging.StreamHandler()]
-)
-log = logging.getLogger("rich")
+# Configure logging
+logging.basicConfig(level=logging.INFO,
+                    format='%(asctime)s - %(levelname)s - %(message)s',
+                    datefmt='%Y-%m-%d %H:%M:%S')
+log = logging.getLogger(__name__)
 
-# Global flag for graceful shutdown
+# Global flag to signal training tasks to stop
 should_stop = False
 
 def handle_interrupt(signum, frame):
-    """Handle interrupt signal gracefully"""
+    """Handle interrupt signals gracefully."""
     global should_stop
-    log.info("Received interrupt signal. Stopping gracefully...")
+    log.info("Interrupt signal received (SIGINT).")
     should_stop = True
 
-def format_time(seconds):
-    """Format seconds into human readable time"""
-    hours = seconds // 3600
-    minutes = (seconds % 3600) // 60
-    seconds = seconds % 60
-    if hours > 0:
-        return f"{hours:.0f}h {minutes:.0f}m"
-    elif minutes > 0:
-        return f"{minutes:.0f}m {seconds:.0f}s"
-    else:
-        return f"{seconds:.0f}s"
+async def load_and_prepare_dataset(dataset_name="roneneldan/TinyStories", split="train", tokenizer_samples=None):
+    """Load the dataset and sample for tokenizer training."""
+    log.info(f"Loading dataset {dataset_name}...")
+    dataset = load_dataset(dataset_name, split=split)
+    total_samples = len(dataset)
+    log.info(f"Total samples in {split} dataset: {total_samples}")
+
+    if tokenizer_samples:
+        if tokenizer_samples > total_samples:
+            log.warning(f"Requested {tokenizer_samples} samples, but dataset only has {total_samples}. Using all samples.")
+            tokenizer_samples = total_samples
+        else:
+            log.info(f"Using {tokenizer_samples} samples for tokenizer training")
+            dataset = dataset.select(range(tokenizer_samples))
+
+    return dataset
 
 async def train_tokenizer(dataset, vocab_size=8192, output_dir=None):
     """Train a new BPE tokenizer on the dataset or load if exists."""
@@ -98,7 +94,6 @@ async def train_tokenizer(dataset, vocab_size=8192, output_dir=None):
         except json.JSONDecodeError:
             log.info("Invalid state file, starting from beginning")
             processed_count = 0
-    
     def get_training_corpus():
         """Regular generator for tokenizer training"""
         nonlocal processed_count, last_log_time, training_completed, total_tokens, total_chars
@@ -108,109 +103,74 @@ async def train_tokenizer(dataset, vocab_size=8192, output_dir=None):
         temp_tokenizer = Tokenizer(models.BPE())
         temp_tokenizer.pre_tokenizer = pre_tokenizers.ByteLevel(add_prefix_space=True)
         
-        for i in range(processed_count, len(dataset), batch_size):
+        for i in range(processed_count, total_size, batch_size):
+            batch = dataset[i:i + batch_size]
+            
+            # Check for stop signal between batches
             if should_stop:
-                log.info("Training corpus generation interrupted")
-                # Save state before stopping
-                if state_path:
-                    try:
-                        with open(state_path, 'w') as f:
-                            json.dump({'processed_count': i}, f)
-                        log.info(f"Saved tokenizer state at {i}/{total_size} examples")
-                    except Exception as e:
-                        log.error(f"Failed to save state: {e}")
+                log.info("Stop signal received, pausing tokenizer training...")
                 return
-                
-            batch = dataset[i:i + batch_size]["text"]
-            batch_size_actual = len(batch)
-            processed_count = i + batch_size_actual
             
-            # Update progress and metrics every 10 seconds
+            texts = [example["text"] for example in batch]
+            
+            # Use temp tokenizer to get metrics for this batch
+            encoded_batch = temp_tokenizer.encode_batch(texts)
+            batch_tokens = sum(len(encoding.ids) for encoding in encoded_batch)
+            batch_chars = sum(len(text) for text in texts)
+            total_tokens += batch_tokens
+            total_chars += batch_chars
+            
+            yield texts
+            processed_count += len(batch)
+
+            # Calculate and log metrics
             current_time = time.time()
-            if current_time - last_log_time > 10:
-                elapsed = current_time - start_time
-                progress = i / total_size
-                if progress > 0:
-                    remaining = elapsed / progress - elapsed
-                    speed = i / elapsed
-                    
-                    # Calculate metrics on a sample of the batch
-                    sample_size = min(10, len(batch))  # Use at most 10 examples for metrics
-                    sample_chars = 0
-                    sample_tokens = 0
-                    for text in batch[:sample_size]:
-                        sample_chars += len(text)
-                        tokens = temp_tokenizer.pre_tokenizer.pre_tokenize_str(text)
-                        sample_tokens += len(tokens)
-                    
-                    # Calculate metrics from sample
-                    avg_tokens_per_char = sample_tokens / sample_chars if sample_chars > 0 else 0
-                    compression = 1 / avg_tokens_per_char if avg_tokens_per_char > 0 else 0
-                    
-                    log.info(f"Progress: {i}/{total_size} ({progress:.1%}) - {speed:.0f} examples/s - ETA: {format_time(remaining)}")
-                    log.info(f"Metrics: Compression ratio: {compression:.2f}x (avg {avg_tokens_per_char:.2f} tokens/char)")
-                    log.info(f"Vocab size so far: {len(tokenizer.get_vocab())}")
+            elapsed_time = current_time - start_time
+            if current_time - last_log_time >= 5:
+                avg_tokens_per_example = total_tokens / processed_count if processed_count else 0
+                avg_chars_per_example = total_chars / processed_count if processed_count else 0
+                examples_per_second = processed_count / elapsed_time if elapsed_time else 0
+                
+                metrics = {
+                    "processed_examples": processed_count,
+                    "elapsed_time": int(elapsed_time),
+                    "examples_per_second": int(examples_per_second),
+                    "avg_tokens_per_example": round(avg_tokens_per_example, 2),
+                    "avg_chars_per_example": round(avg_chars_per_example, 2),
+                }
+                log.info(f"Tokenizer training metrics: {metrics}")
                 last_log_time = current_time
-            
-            yield batch
-            
-            # Check if we've processed everything
-            remaining = total_size - processed_count
-            if remaining <= 0:
-                training_completed = True
-                log.info(f"Processed all {total_size} examples!")
-                log.info(f"Final processed_count: {processed_count}")
-                
-                # Calculate final metrics on a larger sample
-                sample_size = min(100, len(dataset))  # Use 100 examples for final metrics
-                sample_chars = 0
-                sample_tokens = 0
-                for text in dataset[:sample_size]["text"]:
-                    sample_chars += len(text)
-                    tokens = temp_tokenizer.pre_tokenizer.pre_tokenize_str(text)
-                    sample_tokens += len(tokens)
-                
-                # Calculate final metrics
-                avg_tokens_per_char = sample_tokens / sample_chars if sample_chars > 0 else 0
-                compression = 1 / avg_tokens_per_char if avg_tokens_per_char > 0 else 0
-                log.info(f"Final metrics: Compression ratio: {compression:.2f}x (avg {avg_tokens_per_char:.2f} tokens/char)")
-                log.info(f"Final vocab size: {len(tokenizer.get_vocab())}")
-                return
     
     try:
-        # Run tokenizer training in thread pool to not block
-        log.info("Starting tokenizer training...")
+        # Wrap the get_training_corpus generator to handle exceptions
+        def safe_training_corpus():
+            try:
+                yield from get_training_corpus()
+            except Exception as e:
+                log.error(f"Error in get_training_corpus: {e}")
+                import traceback
+                log.error(f"Traceback: {traceback.format_exc()}")
+                return
         
-        async def train():
-            nonlocal last_log_time
-            while not should_stop:
-                try:
-                    # Reset log time on each attempt
-                    last_log_time = time.time()
-                    # Train in small chunks to allow interruption
-                    corpus = get_training_corpus()
-                    tokenizer.train_from_iterator(corpus, trainer=trainer)
-                    break
-                except Exception as e:
-                    if should_stop:
-                        log.info("Tokenizer training interrupted")
-                        return None
-                    if "mutably borrowed" not in str(e):
-                        raise e
-                    # If we hit a borrow error, wait a bit and retry
-                    await asyncio.sleep(0.1)
-                    continue
-            
-            return tokenizer if not should_stop else None
-            
-        tokenizer = await train()
-        
-        if tokenizer is None:
-            log.info("Tokenizer training was interrupted")
-            return None
+        # Train in batches
+        tokenizer.train_from_iterator(
+            safe_training_corpus(),
+            trainer=trainer,
+            length=total_size,
+        )
         
         log.info(f"Tokenizer after training: {tokenizer}")
-        log.info("Tokenizer training completed")
+        
+        # Save tokenizer state if not completed
+        if not training_completed and state_path:
+            state = {
+                'processed_count': processed_count,
+            }
+            with open(state_path, 'w') as f:
+                json.dump(state, f)
+            log.info(f"Saved tokenizer state to {state_path}")
+        
+        log.info(f"Tokenizer training metrics: {metrics}")
         
         # Force training_completed if we processed everything
         if processed_count >= total_size:
@@ -224,6 +184,15 @@ async def train_tokenizer(dataset, vocab_size=8192, output_dir=None):
                 log.info(f"Saving tokenizer to {tokenizer_path}...")
                 tokenizer.save(str(tokenizer_path))
                 log.info("Tokenizer saved successfully")
+                
+                # Verify tokenizer integrity
+                log.info("Verifying tokenizer integrity...")
+                loaded_tokenizer = Tokenizer.from_file(str(tokenizer_path))
+                if tokenizer.to_str() == loaded_tokenizer.to_str():
+                    log.info("Tokenizer integrity verified!")
+                else:
+                    log.error("Tokenizer integrity check failed!")
+
             # Clear state file if training completed
             if state_path and state_path.exists():
                 try:
@@ -245,178 +214,102 @@ async def train_tokenizer(dataset, vocab_size=8192, output_dir=None):
         log.error(f"Traceback: {traceback.format_exc()}")
         return None
 
-def get_model_config(vocab_size=8192):
-    """Get configuration for a small GPT model."""
-    return GPT2Config(
-        vocab_size=vocab_size,
-        n_layer=4,
-        n_head=4,
-        n_embd=128,
-        max_position_embeddings=128,  # Same as block_size
-        bos_token_id=0,
-        eos_token_id=0,
-        pad_token_id=0,
+async def train_model(dataset, tokenizer, output_dir, training_samples=None):
+    """Train a GPT model on the dataset."""
+    log.info("Initializing model...")
+    
+    if not FORCE_RETRAIN and (output_dir / "pytorch_model.bin").exists():
+        log.info("Loading existing model...")
+        model = AutoModelForCausalLM.from_pretrained(str(output_dir))
+    else:
+        log.info("Force retrain enabled - initializing new model...")
+        tokenizer = PreTrainedTokenizerFast(tokenizer_object=tokenizer)
+        tokenizer.pad_token = "<|pad|>"  # Set pad token here
+        tokenizer.unk_token = "<|endoftext|>"
+        tokenizer.bos_token = "<|endoftext|>"
+        tokenizer.eos_token = "<|endoftext|>"
+        model = AutoModelForCausalLM.from_pretrained("gpt2", pad_token_id=tokenizer.pad_token_id)
+        
+    if training_samples:
+        log.info(f"Loading and tokenizing dataset ({training_samples} samples) for model training...")
+        dataset = dataset.select(range(training_samples))
+    else:
+        log.info("Loading and tokenizing entire dataset for model training...")
+    
+    tokenized_dataset = dataset.map(lambda examples: tokenizer(examples["text"], truncation=True, padding="max_length", max_length=128), batched=True)
+    tokenized_dataset = tokenized_dataset.remove_columns(["text"])
+
+    training_args = TrainingArguments(
+        output_dir=output_dir,
+        overwrite_output_dir=True,
+        num_train_epochs=1,
+        per_device_train_batch_size=32,
+        save_steps=10,
+        save_total_limit=2,
+        logging_dir=f"{output_dir}/logs",
+        logging_steps=10,
+        report_to="tensorboard",
+        learning_rate=5e-5,  # Add a learning rate
+        adam_epsilon=1e-8,  # Set epsilon for Adam optimizer
+        no_cuda=True,
+        gradient_accumulation_steps=1,
+        fp16=False,
     )
 
-class InterruptibleTrainer(Trainer):
-    """Custom trainer that can be interrupted gracefully"""
-    def training_step(self, *args, **kwargs):
-        if should_stop:
-            raise KeyboardInterrupt
-        return super().training_step(*args, **kwargs)
+    trainer = Trainer(
+        model=model,
+        args=training_args,
+        train_dataset=tokenized_dataset,
+        tokenizer=tokenizer,
+        eval_dataset=tokenized_dataset,
+    )
 
-async def async_main():
+    log.info("Starting/Resuming training...")
     try:
-        # Get total dataset size first
-        log.info("Checking total dataset size...")
-        loop = asyncio.get_event_loop()
-        full_dataset = await loop.run_in_executor(
-            None,
-            lambda: load_dataset("roneneldan/TinyStories", split="train")
-        )
-        log.info(f"Total samples in TinyStories dataset: {len(full_dataset):,}")
-        
-        # Create output directory
-        output_dir = Path("./tiny_gpt")
-        output_dir.mkdir(exist_ok=True)
-        
-        # Check for existing HF tokenizer
-        hf_tokenizer_path = output_dir / "tokenizer_config.json"
-        if not FORCE_RETRAIN and hf_tokenizer_path.exists():
-            log.info("Loading existing HuggingFace tokenizer...")
-            hf_tokenizer = PreTrainedTokenizerFast.from_pretrained(str(output_dir))
-        else:
-            if FORCE_RETRAIN:
-                log.info("Force retrain enabled - training new tokenizer...")
-            log.info(f"Loading {TOKENIZER_SAMPLES} samples for tokenizer training...")
-            loop = asyncio.get_event_loop()
-            dataset = await loop.run_in_executor(
-                None,
-                lambda: load_dataset("roneneldan/TinyStories", split=f"train[:{TOKENIZER_SAMPLES}]")
-            )
-            
-            log.info(f"Using {len(dataset)} examples for tokenizer training")
-            
-            if should_stop:
-                return
-            
-            # Train or load tokenizer
-            tokenizer = await train_tokenizer(dataset, vocab_size=VOCAB_SIZE, output_dir=output_dir)
-            
-            if should_stop or tokenizer is None:
-                log.info("Tokenizer training was interrupted or failed. Exiting...")
-                return
-                
-            # Convert to Hugging Face tokenizer
-            hf_tokenizer = PreTrainedTokenizerFast(
-                tokenizer_object=tokenizer,
-                bos_token="<|endoftext|>",
-                eos_token="<|endoftext|>",
-                pad_token="<|pad|>"
-            )
-            hf_tokenizer.save_pretrained(output_dir)
-        
-        log.info("Initializing model...")
-        config = get_model_config(vocab_size=hf_tokenizer.vocab_size)
-        
-        # Check for existing model checkpoint
-        if not FORCE_RETRAIN and (output_dir / "pytorch_model.bin").exists():
-            log.info("Loading existing model checkpoint...")
-            model = AutoModelForCausalLM.from_pretrained(str(output_dir))
-        else:
-            if FORCE_RETRAIN:
-                log.info("Force retrain enabled - initializing new model...")
-            model = AutoModelForCausalLM.from_config(config)
-        
-        if should_stop:
-            return
-            
-        # Only tokenize dataset if not resuming from checkpoint or force retrain
-        if FORCE_RETRAIN or not (output_dir / "trainer_state.json").exists():
-            log.info(f"Loading and tokenizing dataset ({TRAINING_SAMPLES} samples) for model training...")
-            loop = asyncio.get_event_loop()
-            dataset = await loop.run_in_executor(
-                None,
-                lambda: load_dataset("roneneldan/TinyStories", split=f"train[:{TRAINING_SAMPLES}]")
-            )
-            
-            def tokenize_function(examples):
-                # Tokenize the texts
-                tokenized = hf_tokenizer(
-                    examples["text"],
-                    truncation=True,
-                    max_length=128,
-                    padding="max_length"
-                )
-                
-                # Create labels by shifting input_ids
-                tokenized["labels"] = tokenized["input_ids"].copy()  # Next token prediction
-                
-                return tokenized
-            
-            tokenized_dataset = await loop.run_in_executor(
-                None,
-                lambda: dataset.map(
-                    tokenize_function,
-                    batched=True,
-                    remove_columns=dataset.column_names
-                )
-            )
-        else:
-            log.info("Resuming from existing checkpoint...")
-            tokenized_dataset = None  # Trainer will load from cache
-        
-        if should_stop:
-            return
-            
-        # Training arguments
-        training_args = TrainingArguments(
-            output_dir=str(output_dir),
-            num_train_epochs=1,  # Just 1 epoch for testing
-            per_device_train_batch_size=32,
-            save_steps=10,  # Save more frequently for testing
-            save_total_limit=2,
-            logging_steps=1,  # Log every step for testing
-            save_strategy="steps",
-            resume_from_checkpoint=True,
-            no_cuda=True,  # Force CPU
-            log_level="info"
-        )
-        
-        log.info("Starting/Resuming training...")
-        trainer = InterruptibleTrainer(
-            model=model,
-            args=training_args,
-            train_dataset=tokenized_dataset,
-        )
-        
-        try:
-            await loop.run_in_executor(None, trainer.train)
-        except KeyboardInterrupt:
-            log.info("Training interrupted. Saving checkpoint...")
-            trainer.save_model()
-            trainer.save_state()
-            return
-            
-        if not should_stop:
-            log.info("Saving model and tokenizer...")
-            model.save_pretrained(output_dir)
-            hf_tokenizer.save_pretrained(output_dir)
-            log.info("Training complete!")
-    
+        trainer.train()
     except Exception as e:
-        log.exception(f"Error during training: {e}")
-    finally:
-        if should_stop:
-            log.info("Training stopped gracefully.")
+        log.error(f"Error during model training: {e}")
+        import traceback
+        log.error(f"Traceback: {traceback.format_exc()}")
+        return None
 
-def main():
-    # Set up signal handlers
-    signal.signal(signal.SIGINT, handle_interrupt)
-    signal.signal(signal.SIGTERM, handle_interrupt)
+    return model
+
+async def main():
+    """Main function to control the training process."""
+    global should_stop
     
-    # Run the async main
-    asyncio.run(async_main())
+    # Register the interrupt handler
+    signal.signal(signal.SIGINT, handle_interrupt)
+    
+    output_dir = Path(MODEL_OUTPUT_DIR)
+    if not output_dir.exists():
+        os.makedirs(output_dir)
+    
+    dataset = await load_and_prepare_dataset(tokenizer_samples=TOKENIZER_SAMPLES)
+    if should_stop:
+        return
+    
+    tokenizer = await train_tokenizer(dataset, VOCAB_SIZE, output_dir=output_dir)
+    if should_stop or tokenizer is None:
+        return
+    
+    hf_tokenizer = PreTrainedTokenizerFast(tokenizer_object=tokenizer)
+    hf_tokenizer.pad_token = "<|pad|>"
+    hf_tokenizer.unk_token = "<|endoftext|>"
+    hf_tokenizer.bos_token = "<|endoftext|>"
+    hf_tokenizer.eos_token = "<|endoftext|>"
+    
+    model = await train_model(dataset, hf_tokenizer, output_dir, training_samples=TRAINING_SAMPLES)
+    if should_stop:
+        return
+        
+    if not should_stop:
+        log.info("Saving model and tokenizer...")
+        model.save_pretrained(output_dir)
+        hf_tokenizer.save_pretrained(output_dir)
+        log.info(f"Model and tokenizer saved to {output_dir}")
+        log.info("Training complete!")
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())
