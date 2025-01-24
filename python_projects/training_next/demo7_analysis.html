@@ -1,0 +1,346 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        table { border-collapse: collapse; width: 100%; }
+        th, td { padding: 8px; text-align: left; border-bottom: 1px solid #ddd; }
+        .token { font-weight: bold; }
+        .context { color: #666; }
+    </style>
+</head>
+<body>
+    <div class="sentence"><h3>Full Text:</h3><p>the quick brown fox jumps over the lazy dog.</p></div>
+
+    <div class="analysis-table">
+        <h3>Detailed Analysis</h3>
+        <table>
+            <thead>
+                <tr>
+                    <th>Char Pos</th>
+                    <th>Char</th>
+                    <th>F.Prob</th>
+                    <th>F.Neigh</th>
+                    <th>F.Ent</th>
+                    <th>F.Loss</th>
+                    <th>Token</th>
+                    <th>B.Prob</th>
+                    <th>B.Ent</th>
+                    <th>B.Loss</th>
+                    <th>S.Prob</th>
+                    <th>S.Ent</th>
+                    <th>S.Loss</th>
+                    <th>ID</th>
+                    <th>Context</th>
+                </tr>
+            </thead>
+            <tbody>
+    
+        <tr>
+            <td>0</td>
+            <td>t</td>
+            <td style="color: rgb(0, 1, 0)">0.00</td>
+            <td style="color: rgb(0, 1, 0)">0.00</td>
+            <td style="color: rgb(0, 0, 137)">5.4</td>
+            <td style="color: rgb(141, 0, 141)">5.5</td>
+            <td class="token">the</td>
+            <td style="color: rgb(247, 0, 0)">0.03</td>
+            <td style="color: rgb(0, 0, 164)">6.5</td>
+            <td style="color: rgb(88, 0, 88)">3.5</td>
+            <td style="color: rgb(0, 0, 0)">0.00</td>
+            <td style="color: rgb(0, 0, 255)">12.9</td>
+            <td style="color: rgb(255, 0, 255)">10.6</td>
+            <td>1996</td>
+            <td class="context">[the]</td>
+        </tr>
+        
+        <tr>
+            <td>1</td>
+            <td>q</td>
+            <td style="color: rgb(0, 0, 0)">0.00</td>
+            <td style="color: rgb(0, 0, 0)">0.00</td>
+            <td style="color: rgb(0, 0, 143)">5.6</td>
+            <td style="color: rgb(223, 0, 223)">8.8</td>
+            <td class="token">quick</td>
+            <td style="color: rgb(254, 0, 0)">0.00</td>
+            <td style="color: rgb(0, 0, 255)">11.3</td>
+            <td style="color: rgb(255, 0, 255)">10.8</td>
+            <td style="color: rgb(0, 0, 0)">0.00</td>
+            <td style="color: rgb(0, 0, 255)">12.9</td>
+            <td style="color: rgb(249, 0, 249)">9.8</td>
+            <td>4248</td>
+            <td class="context">quick</td>
+        </tr>
+        
+        <tr>
+            <td>2</td>
+            <td>b</td>
+            <td style="color: rgb(0, 0, 0)">0.00</td>
+            <td style="color: rgb(0, 0, 0)">0.00</td>
+            <td style="color: rgb(0, 0, 198)">7.8</td>
+            <td style="color: rgb(151, 0, 151)">5.9</td>
+            <td class="token">brown</td>
+            <td style="color: rgb(254, 0, 0)">0.00</td>
+            <td style="color: rgb(0, 0, 52)">2.1</td>
+            <td style="color: rgb(255, 0, 255)">12.2</td>
+            <td style="color: rgb(0, 0, 0)">0.00</td>
+            <td style="color: rgb(0, 0, 255)">12.1</td>
+            <td style="color: rgb(218, 0, 218)">8.6</td>
+            <td>2829</td>
+            <td class="context">brown</td>
+        </tr>
+        
+        <tr>
+            <td>3</td>
+            <td>f</td>
+            <td style="color: rgb(0, 1, 0)">0.00</td>
+            <td style="color: rgb(0, 1, 0)">0.00</td>
+            <td style="color: rgb(0, 0, 147)">5.8</td>
+            <td style="color: rgb(135, 0, 135)">5.3</td>
+            <td class="token">fox</td>
+            <td style="color: rgb(254, 0, 0)">0.00</td>
+            <td style="color: rgb(0, 0, 96)">3.8</td>
+            <td style="color: rgb(230, 0, 230)">9.1</td>
+            <td style="color: rgb(0, 0, 0)">0.00</td>
+            <td style="color: rgb(0, 0, 255)">10.7</td>
+            <td style="color: rgb(194, 0, 194)">7.6</td>
+            <td>4419</td>
+            <td class="context">fox</td>
+        </tr>
+        
+        <tr>
+            <td>4</td>
+            <td>j</td>
+            <td style="color: rgb(0, 0, 0)">0.00</td>
+            <td style="color: rgb(0, 0, 0)">0.00</td>
+            <td style="color: rgb(0, 0, 194)">7.6</td>
+            <td style="color: rgb(176, 0, 176)">6.9</td>
+            <td class="token">jumps</td>
+            <td style="color: rgb(254, 0, 0)">0.00</td>
+            <td style="color: rgb(0, 0, 190)">7.5</td>
+            <td style="color: rgb(255, 0, 255)">14.0</td>
+            <td style="color: rgb(0, 0, 0)">0.00</td>
+            <td style="color: rgb(0, 0, 255)">10.6</td>
+            <td style="color: rgb(255, 0, 255)">10.4</td>
+            <td>14523</td>
+            <td class="context"></td>
+        </tr>
+        
+        <tr>
+            <td>5</td>
+            <td>o</td>
+            <td style="color: rgb(0, 15, 0)">0.06</td>
+            <td style="color: rgb(0, 15, 0)">0.00</td>
+            <td style="color: rgb(0, 0, 120)">4.7</td>
+            <td style="color: rgb(70, 0, 70)">2.8</td>
+            <td class="token">over</td>
+            <td style="color: rgb(254, 0, 0)">0.00</td>
+            <td style="color: rgb(0, 0, 91)">3.6</td>
+            <td style="color: rgb(195, 0, 195)">7.7</td>
+            <td style="color: rgb(0, 0, 0)">0.00</td>
+            <td style="color: rgb(0, 0, 212)">8.4</td>
+            <td style="color: rgb(255, 0, 255)">10.6</td>
+            <td>2058</td>
+            <td class="context"></td>
+        </tr>
+        
+        <tr>
+            <td>6</td>
+            <td>t</td>
+            <td style="color: rgb(0, 47, 0)">0.19</td>
+            <td style="color: rgb(0, 47, 0)">0.00</td>
+            <td style="color: rgb(0, 0, 64)">2.5</td>
+            <td style="color: rgb(42, 0, 42)">1.7</td>
+            <td class="token">the</td>
+            <td style="color: rgb(239, 0, 0)">0.06</td>
+            <td style="color: rgb(0, 0, 91)">3.6</td>
+            <td style="color: rgb(70, 0, 70)">2.8</td>
+            <td style="color: rgb(0, 0, 0)">0.00</td>
+            <td style="color: rgb(0, 0, 217)">8.5</td>
+            <td style="color: rgb(156, 0, 156)">6.2</td>
+            <td>1996</td>
+            <td class="context"></td>
+        </tr>
+        
+        <tr>
+            <td>7</td>
+            <td>l</td>
+            <td style="color: rgb(0, 0, 0)">0.00</td>
+            <td style="color: rgb(0, 0, 0)">0.00</td>
+            <td style="color: rgb(0, 0, 217)">8.5</td>
+            <td style="color: rgb(203, 0, 203)">8.0</td>
+            <td class="token">lazy</td>
+            <td style="color: rgb(254, 0, 0)">0.00</td>
+            <td style="color: rgb(0, 0, 255)">11.3</td>
+            <td style="color: rgb(255, 0, 255)">13.1</td>
+            <td style="color: rgb(0, 0, 0)">0.00</td>
+            <td style="color: rgb(0, 0, 255)">12.7</td>
+            <td style="color: rgb(189, 0, 189)">7.4</td>
+            <td>13971</td>
+            <td class="context"></td>
+        </tr>
+        
+        <tr>
+            <td>8</td>
+            <td>d</td>
+            <td style="color: rgb(0, 0, 0)">0.00</td>
+            <td style="color: rgb(0, 0, 0)">0.00</td>
+            <td style="color: rgb(0, 0, 160)">6.3</td>
+            <td style="color: rgb(148, 0, 148)">5.8</td>
+            <td class="token">dog</td>
+            <td style="color: rgb(254, 0, 0)">0.00</td>
+            <td style="color: rgb(0, 0, 85)">3.4</td>
+            <td style="color: rgb(194, 0, 194)">7.6</td>
+            <td style="color: rgb(0, 0, 0)">0.00</td>
+            <td style="color: rgb(0, 0, 255)">11.2</td>
+            <td style="color: rgb(226, 0, 226)">8.9</td>
+            <td>3899</td>
+            <td class="context"></td>
+        </tr>
+        
+        <tr>
+            <td>9</td>
+            <td>.</td>
+            <td style="color: rgb(0, 3, 0)">0.01</td>
+            <td style="color: rgb(0, 3, 0)">0.00</td>
+            <td style="color: rgb(0, 0, 188)">7.4</td>
+            <td style="color: rgb(112, 0, 112)">4.4</td>
+            <td class="token">.</td>
+            <td style="color: rgb(189, 0, 0)">0.26</td>
+            <td style="color: rgb(0, 0, 203)">8.0</td>
+            <td style="color: rgb(34, 0, 34)">1.4</td>
+            <td style="color: rgb(0, 0, 0)">0.00</td>
+            <td style="color: rgb(0, 0, 255)">10.6</td>
+            <td style="color: rgb(234, 0, 234)">9.2</td>
+            <td>1012</td>
+            <td class="context"></td>
+        </tr>
+        
+            </tbody>
+        </table>
+    </div>
+    
+    <div class="tokenization-comparison">
+        <h3>Tokenization Comparison</h3>
+        <table>
+            <thead>
+                <tr>
+                    <th>Char Pos</th>
+                    <th>Char</th>
+                    <th>BERT Token</th>
+                    <th>SmolLM Token</th>
+                    <th>BERT Fwd Prob</th>
+                    <th>BERT Bwd Prob</th>
+                    <th>SmolLM Prob</th>
+                </tr>
+            </thead>
+            <tbody>
+    
+        <tr>
+            <td>0</td>
+            <td>t</td>
+            <td>the</td>
+            <td>the</td>
+            <td>0.00</td>
+            <td>0.03</td>
+            <td>0.00</td>
+        </tr>
+        
+        <tr>
+            <td>1</td>
+            <td>q</td>
+            <td>quick</td>
+            <td>р</td>
+            <td>0.00</td>
+            <td>0.00</td>
+            <td>0.00</td>
+        </tr>
+        
+        <tr>
+            <td>2</td>
+            <td>b</td>
+            <td>brown</td>
+            <td>son</td>
+            <td>0.00</td>
+            <td>0.00</td>
+            <td>0.00</td>
+        </tr>
+        
+        <tr>
+            <td>3</td>
+            <td>f</td>
+            <td>fox</td>
+            <td>lasted</td>
+            <td>0.00</td>
+            <td>0.00</td>
+            <td>0.00</td>
+        </tr>
+        
+        <tr>
+            <td>4</td>
+            <td>j</td>
+            <td>jumps</td>
+            <td>creed</td>
+            <td>0.00</td>
+            <td>0.00</td>
+            <td>0.00</td>
+        </tr>
+        
+        <tr>
+            <td>5</td>
+            <td>o</td>
+            <td>over</td>
+            <td>318</td>
+            <td>0.06</td>
+            <td>0.00</td>
+            <td>0.00</td>
+        </tr>
+        
+        <tr>
+            <td>6</td>
+            <td>t</td>
+            <td>the</td>
+            <td>[unused685]</td>
+            <td>0.19</td>
+            <td>0.06</td>
+            <td>0.00</td>
+        </tr>
+        
+        <tr>
+            <td>7</td>
+            <td>l</td>
+            <td>lazy</td>
+            <td>[unused255]</td>
+            <td>0.00</td>
+            <td>0.00</td>
+            <td>0.00</td>
+        </tr>
+        
+        <tr>
+            <td>8</td>
+            <td>d</td>
+            <td>dog</td>
+            <td>toro</td>
+            <td>0.00</td>
+            <td>0.00</td>
+            <td>0.00</td>
+        </tr>
+        
+        <tr>
+            <td>9</td>
+            <td>.</td>
+            <td>.</td>
+            <td>friend</td>
+            <td>0.01</td>
+            <td>0.26</td>
+            <td>0.00</td>
+        </tr>
+        
+            </tbody>
+        </table>
+    </div>
+    
+</body>
+</html>

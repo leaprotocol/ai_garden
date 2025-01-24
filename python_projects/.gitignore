@@ -21,16 +21,12 @@ wheels/
 *.egg
 
 # Training artifacts
-training/tiny_gpt/checkpoint-*/
-training/tiny_gpt/*.bin
-training/tiny_gpt/*.json
-training/tiny_gpt/*.safetensors
-training/tiny_gpt/trainer_state.json
-training/tiny_gpt/training_args.bin
-
-# Keep important files
-!training/tiny_gpt/tokenizer.json
-!training/tiny_gpt/config.json
+training*/tiny_gpt/checkpoint-*/
+training*/tiny_gpt/*.bin
+training*/tiny_gpt/*.json
+training*/tiny_gpt/*.safetensors
+training*/tiny_gpt/trainer_state.json
+training*/tiny_gpt/training_args.bin
 
 # IDE
 .vscode/
@@ -49,3 +45,5 @@ env/
 
 # Poetry
 poetry.lock 
+
+**/analysis/
