@@ -8,8 +8,8 @@ load_dotenv()
 # Construct the vastai CLI command
 command = [
     'vastai', 'search', 'offers',
-    'external=true', 'verified=false', 'rentable=True', 'gpu_ram>=7', 'dph_total<=0.20',
-    '-o', 'dph-', '--raw', '--storage', '750'
+    'external=true', 'verified=false', 'rentable=True', 'gpu_ram>=1', 'dph_total<=0.20',
+    '-o', 'dph', '--raw', '--storage', '50'
 ]
 
 def format_number(num):
