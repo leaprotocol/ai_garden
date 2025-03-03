@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Infinite Token Generator</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        
+        .container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .controls {
+            margin-bottom: 20px;
+        }
+        
+        .prompt-input {
+            width: 100%;
+            padding: 10px;
+            margin-bottom: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        
+        .button {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-right: 10px;
+        }
+        
+        .start-button {
+            background: #4CAF50;
+            color: white;
+        }
+        
+        .stop-button {
+            background: #f44336;
+            color: white;
+        }
+        
+        .output {
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            min-height: 200px;
+            max-height: 500px;
+            overflow-y: auto;
+        }
+        
+        .token {
+            display: inline;
+        }
+        
+        .token.high-prob {
+            color: #4CAF50;
+        }
+        
+        .token.medium-prob {
+            color: #FFC107;
+        }
+        
+        .token.low-prob {
+            color: #f44336;
+        }
+        
+        .stats {
+            color: #666;
+            font-size: 0.9em;
+            margin-top: 10px;
+        }
+        
+        .status {
+            margin-top: 10px;
+            font-weight: bold;
+        }
+        
+        .status.running {
+            color: #4CAF50;
+        }
+        
+        .status.stopped {
+            color: #f44336;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Infinite Token Generator</h1>
+        
+        <div class="controls">
+            <input type="text" class="prompt-input" id="prompt" 
+                   placeholder="Enter your prompt" value="Once upon a time">
+            <input type="number" id="temperature" value="0.7" min="0.1" max="2" step="0.1">
+            <button class="button start-button" id="startButton" onclick="startGeneration()">Start</button>
+            <button class="button stop-button" id="stopButton" onclick="stopGeneration()" disabled>Stop</button>
+        </div>
+        
+        <div class="status" id="status"></div>
+        <div class="output" id="output"></div>
+        <div class="stats" id="stats"></div>
+    </div>
+    
+    <script>
+        let ws;
+        let tokenCount = 0;
+        let isGenerating = false;
+        
+        function connect() {
+            ws = new WebSocket('ws://localhost:8765');
+            
+            ws.onopen = function() {
+                console.log('WebSocket connection established');
+                updateStatus('Connected');
+            };
+            
+            ws.onmessage = function(event) {
+                const data = JSON.parse(event.data);
+                
+                // Handle special events
+                if (data.event === 'stopped') {
+                    handleStopEvent();
+                    return;
+                }
+                
+                if (data.event === 'error') {
+                    handleErrorEvent(data.error);
+                    return;
+                }
+                
+                displayToken(data);
+            };
+            
+            ws.onclose = function() {
+                console.log('WebSocket connection closed');
+                updateStatus('Disconnected');
+                setTimeout(connect, 2000); // Try to reconnect
+            };
+            
+            ws.onerror = function(error) {
+                console.error('WebSocket error:', error);
+                updateStatus('Connection error');
+            };
+        }
+        
+        function startGeneration() {
+            if (!ws || ws.readyState !== WebSocket.OPEN) {
+                connect();
+                setTimeout(startGeneration, 1000);
+                return;
+            }
+            
+            const prompt = document.getElementById('prompt').value;
+            const temperature = parseFloat(document.getElementById('temperature').value);
+            
+            ws.send(JSON.stringify({
+                command: 'generate',
+                prompt: prompt,
+                temperature: temperature
+            }));
+            
+            // Clear previous output
+            document.getElementById('output').innerHTML = '';
+            document.getElementById('stats').innerHTML = '';
+            tokenCount = 0;
+            
+            // Update UI
+            isGenerating = true;
+            document.getElementById('startButton').disabled = true;
+            document.getElementById('stopButton').disabled = false;
+            updateStatus('Generating...', 'running');
+        }
+        
+        function stopGeneration() {
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({command: 'stop'}));
+                document.getElementById('stopButton').disabled = true;
+            }
+        }
+        
+        function handleStopEvent() {
+            isGenerating = false;
+            document.getElementById('startButton').disabled = false;
+            document.getElementById('stopButton').disabled = true;
+            updateStatus('Stopped', 'stopped');
+        }
+        
+        function handleErrorEvent(error) {
+            isGenerating = false;
+            document.getElementById('startButton').disabled = false;
+            document.getElementById('stopButton').disabled = true;
+            updateStatus('Error: ' + error, 'stopped');
+        }
+        
+        function updateStatus(message, className) {
+            const status = document.getElementById('status');
+            status.textContent = message;
+            status.className = 'status ' + (className || '');
+        }
+        
+        function displayToken(data) {
+            const output = document.getElementById('output');
+            const stats = document.getElementById('stats');
+            
+            // Create token element
+            const token = document.createElement('span');
+            token.textContent = data.token;
+            token.className = 'token ' + getProbabilityClass(data.token_probability);
+            
+            // Add token to output
+            output.appendChild(token);
+            
+            // Update token count
+            tokenCount++;
+            
+            // Update stats every 20 tokens
+            if (data.token_count % 20 === 0) {
+                const topTokens = data.top_tokens
+                    .map(t => `'${t.token}': ${t.probability.toFixed(4)}`)
+                    .join(', ');
+                    
+                stats.textContent = `Token #${data.token_count} | Top: ${topTokens}`;
+            }
+            
+            // Auto-scroll to bottom
+            output.scrollTop = output.scrollHeight;
+        }
+        
+        function getProbabilityClass(prob) {
+            if (prob > 0.7) return 'high-prob';
+            if (prob > 0.4) return 'medium-prob';
+            return 'low-prob';
+        }
+        
+        // Initial connection
+        connect();
+    </script>
+</body>
+</html> 

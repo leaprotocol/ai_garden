@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>SmolLM2 Chat Interface</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        #output {
+            width: 100%;
+            height: 300px;
+            margin: 20px 0;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            background: white;
+            overflow-y: auto;
+        }
+        #prompt {
+            width: 100%;
+            padding: 10px;
+            margin: 10px 0;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+        button {
+            padding: 10px 20px;
+            background: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        .status {
+            color: #666;
+            font-style: italic;
+        }
+    </style>
+</head>
+<body>
+    <h1>SmolLM2 Chat Interface</h1>
+    <div id="output"></div>
+    <textarea id="prompt" placeholder="Enter your prompt here..."></textarea>
+    <button onclick="sendPrompt()">Generate</button>
+    <p id="status" class="status">Disconnected</p>
+
+    <script>
+        let ws;
+        let outputDiv = document.getElementById('output');
+        let statusElement = document.getElementById('status');
+        let currentResponse = '';
+
+        function connect() {
+            ws = new WebSocket('ws://localhost:8000/ws/generate');
+            
+            ws.onopen = function() {
+                statusElement.textContent = 'Connected';
+            };
+            
+            ws.onclose = function() {
+                statusElement.textContent = 'Disconnected';
+                setTimeout(connect, 1000);  // Reconnect after 1 second
+            };
+            
+            ws.onmessage = function(event) {
+                const data = JSON.parse(event.data);
+                
+                if (data.error) {
+                    outputDiv.innerHTML += `<p style="color: red">Error: ${data.error}</p>`;
+                } else if (data.done) {
+                    outputDiv.innerHTML += `<p><strong>Response:</strong> ${currentResponse}</p>`;
+                    currentResponse = '';
+                } else if (data.token) {
+                    currentResponse += data.token;
+                    // Update the current response in real-time
+                    const responses = outputDiv.innerHTML.split('<p><strong>Response:</strong>');
+                    if (responses.length > 1) {
+                        outputDiv.innerHTML = responses[0] + '<p><strong>Response:</strong> ' + currentResponse;
+                    } else {
+                        outputDiv.innerHTML += '<p><strong>Response:</strong> ' + currentResponse;
+                    }
+                }
+                
+                outputDiv.scrollTop = outputDiv.scrollHeight;
+            };
+        }
+
+        function sendPrompt() {
+            const promptElement = document.getElementById('prompt');
+            const prompt = promptElement.value.trim();
+            
+            if (prompt && ws.readyState === WebSocket.OPEN) {
+                outputDiv.innerHTML += `<p><strong>Prompt:</strong> ${prompt}</p>`;
+                ws.send(JSON.stringify({text_prompt: prompt}));
+                promptElement.value = '';
+            }
+        }
+
+        // Handle Enter key
+        document.getElementById('prompt').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                sendPrompt();
+            }
+        });
+
+        // Initial connection
+        connect();
+    </script>
+</body>
+</html> 

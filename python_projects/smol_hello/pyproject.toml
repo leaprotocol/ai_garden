@@ -1,0 +1,24 @@
+[tool.poetry]
+name = "smol-hello"
+version = "0.1.0"
+description = "Hello World demo using SmolLM2-135M"
+authors = ["Your Name <you@example.com>"]
+readme = "README.md"
+packages = [{include = "smol_hello", from = "src"}]
+
+[tool.poetry.dependencies]
+python = "^3.9"
+torch = "^2.1.0"
+transformers = {extras = ["torch"], version = "^4.48.1"}
+rich = "^13.9.4"
+fastapi = "^0.109.0"
+uvicorn = "^0.27.0"
+websockets = "^14.2"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.poetry.scripts]
+smol-hello = "smol_hello.main:main"
+smol-api = "smol_hello.api:run_api" 

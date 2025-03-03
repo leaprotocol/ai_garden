@@ -1,0 +1,24 @@
+[tool.poetry]
+name = "tokenlab"
+version = "0.1.0"
+description = "Interactive token probability visualization tool using FastAPI and ChartJS"
+authors = ["Your Name <you@example.com>"]
+readme = "README.md"
+packages = [{include = "tokenlab", from = "backend"}]
+
+[tool.poetry.dependencies]
+python = "^3.9"
+torch = "^2.6.0"
+torchvision = "^0.21.0"
+transformers = {extras = ["torch"], version = "^4.37.2"}
+fastapi = "^0.109.0"
+uvicorn = "^0.27.0"
+websockets = "^14.2"
+numpy = "^2.0.2"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.poetry.scripts]
+tokenlab-server = "tokenlab.main:run_server" 
